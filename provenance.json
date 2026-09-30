@@ -48,5 +48,23 @@
       "source_modified": false
     }
   ],
-  "note": "Hashes identify supplied originals, not the maintained versions."
+  "note": "Hashes identify supplied originals, not the maintained versions.",
+  "new_addons": [
+    {
+      "id": "hair_contact_culler",
+      "name": "Hair Contact Culler",
+      "version": "0.2.1",
+      "maintainer": "Helices3D",
+      "origin": "New generic implementation with Codex assistance",
+      "license_declared": "GPL-3.0-or-later",
+      "human_testing_and_publication_approval": "2026-09-30",
+      "approved_python_sha256": {
+        "__init__.py": "1fa922aaf52cc940fb59e32c5b59caf1f997f34bf5c9a0075a035d5e8a0ea26b",
+        "_nodes.py": "d4eee0c0d5c224f436b3bd7134ff59ddf19e37ec68394aed4ed322174ffed95d",
+        "_ui.py": "8848ba5e1005efb2dcf839d80a35e8c844d9df35beb47d26625341936e8c8996",
+        "contacts.py": "d86d38739bce3d4ff7d968d6c3d24783d20c6f9afc0707e69290f7538de519d6"
+      },
+      "note": "Runtime Python is unchanged from the user-approved package; public documentation and repository checks were adapted for integration."
+    }
+  ]
 }

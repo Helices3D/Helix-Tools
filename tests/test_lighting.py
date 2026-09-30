@@ -409,21 +409,46 @@ class LightingTests(unittest.TestCase):
         self.assertEqual(addon._render_current(self.scene), current)
         self.assertEqual(addon._render_snapshot(self.scene), baseline)
 
-    def isolated_startup_check(self, script):
+    def isolated_startup_check(self, script, require_symlink=False):
         executable = bpy.app.binary_path or sys.executable
         with tempfile.TemporaryDirectory(prefix="helix-startup-regression-") as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             environment = os.environ.copy()
-            environment.update({
-                'BLENDER_USER_RESOURCES': str(root / 'resources'),
-                'BLENDER_USER_CONFIG': str(root / 'config'),
-                'XDG_CONFIG_HOME': str(root / 'xdg-config'),
-                'XDG_CACHE_HOME': str(root / 'xdg-cache'),
-            })
+            directories = {
+                'BLENDER_USER_RESOURCES': root / 'resources',
+                'BLENDER_USER_CONFIG': root / 'config',
+                'BLENDER_USER_SCRIPTS': root / 'scripts',
+                'BLENDER_USER_DATAFILES': root / 'datafiles',
+                'BLENDER_USER_EXTENSIONS': root / 'extensions',
+                'XDG_CONFIG_HOME': root / 'xdg-config',
+                'XDG_CACHE_HOME': root / 'xdg-cache',
+            }
+            # Blender can fall back to normal user paths when an override does
+            # not exist. Create every absolute path before launching the child.
+            for variable, directory in directories.items():
+                directory.mkdir(parents=True, exist_ok=True)
+                environment[variable] = str(directory)
+            if require_symlink:
+                target, link = root / 'symlink-target', root / 'symlink-probe'
+                target.touch()
+                try:
+                    link.symlink_to(target)
+                except OSError as exc:
+                    if os.name == 'nt' and getattr(exc, 'winerror', None) == 1314:
+                        self.skipTest('Windows account cannot create symbolic links (privilege 1314)')
+                    raise
+                link.unlink()
+                target.unlink()
+            expected_paths = {resource: str(directories['BLENDER_USER_' + resource])
+                              for resource in ('CONFIG', 'EXTENSIONS', 'SCRIPTS', 'DATAFILES')}
             source = root / 'check.py'
             preamble = (
                 "import bpy, json, sys\nfrom pathlib import Path\nfrom unittest import mock\n"
                 "assert bpy.app.version == (5, 2, 2), bpy.app.version_string\n"
+                f"expected_paths = {expected_paths!r}\n"
+                "for resource, expected in expected_paths.items():\n"
+                "    actual = Path(bpy.utils.user_resource(resource)).resolve()\n"
+                "    assert actual == Path(expected), f'{resource} escaped isolated profile: {actual}'\n"
                 f"sys.path.insert(0, {str(Path(addon.__file__).parents[1])!r})\n"
                 "import area_light_shadow_control as addon\naddon.register()\n"
             )
@@ -608,7 +633,7 @@ class LightingTests(unittest.TestCase):
                 save.assert_not_called()
             assert target.read_bytes() == b'unrelated file'
             assert startup.is_symlink()
-        """)
+        """, require_symlink=True)
 
     def test_startup_malformed_receipts_cancel_before_any_changes(self):
         self.isolated_startup_check("""

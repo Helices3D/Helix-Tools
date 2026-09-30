@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -11,11 +12,24 @@ sys.path.insert(0, str(ROOT / "addons"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 
+def require_isolated_profile():
+    """Refuse scene-reset checks until existing disposable user paths are active."""
+    import bpy
+    for resource in ("CONFIG", "SCRIPTS", "DATAFILES", "EXTENSIONS"):
+        configured = os.environ.get("BLENDER_USER_" + resource)
+        if not configured or not Path(configured).is_dir():
+            raise RuntimeError(f"Create and set a disposable BLENDER_USER_{resource} before checks")
+        actual = Path(bpy.utils.user_resource(resource)).resolve()
+        if actual != Path(configured).resolve():
+            raise RuntimeError(f"{resource} escaped the disposable profile: {actual}")
+
+
 def main():
     import bpy
 
     if bpy.app.version != (5, 2, 2):
         raise RuntimeError(f"Tests require Blender 5.2.2 LTS; got {bpy.app.version_string}")
+    require_isolated_profile()
     parser = argparse.ArgumentParser()
     parser.add_argument("--pattern", default="test_*.py")
     parser.add_argument("--report", type=Path)

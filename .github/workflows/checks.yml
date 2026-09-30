@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       BLENDER_USER_RESOURCES: ${{ github.workspace }}/.blender-test-user
+      BLENDER_USER_CONFIG: ${{ github.workspace }}/.blender-test-user/config
+      BLENDER_USER_SCRIPTS: ${{ github.workspace }}/.blender-test-user/scripts
+      BLENDER_USER_DATAFILES: ${{ github.workspace }}/.blender-test-user/datafiles
+      BLENDER_USER_EXTENSIONS: ${{ github.workspace }}/.blender-test-user/extensions
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,9 +27,9 @@ jobs:
           python -m pip install --only-binary=:all: -r requirements-test.txt
       - name: Run behavioral regressions
         run: |
-          mkdir -p "$BLENDER_USER_RESOURCES"
+          mkdir -p "$BLENDER_USER_CONFIG" "$BLENDER_USER_SCRIPTS" "$BLENDER_USER_DATAFILES" "$BLENDER_USER_EXTENSIONS"
           python tests/run_tests.py --report test-results/blender.json
-      - name: Build the four extension archives
+      - name: Build extension archives
         run: python scripts/build_releases.py
       - name: Validate extension manifests and archive layout
         run: python scripts/validate_releases.py

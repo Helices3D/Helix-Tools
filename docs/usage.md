@@ -1,6 +1,6 @@
 # Usage and migration
 
-Install any of the four versioned ZIPs through **Preferences → Get Extensions →
+Install any of the versioned ZIPs through **Preferences → Get Extensions →
 Install from Disk** in **Blender 5.2.2 LTS**, then enable the installed extensions.
 Open the 3D Viewport sidebar (`N`) and choose **Helix Tools**. Each tool installs
 and works independently; the tab simply groups their panels consistently.
@@ -80,6 +80,33 @@ instanced geometry conservatively. Finite sampling can miss fast motion between
 samples; motion blur, procedural render geometry, reflections, shadows, and
 indirect lighting can require objects outside the camera. Inspect renders before
 keeping culling enabled, and increase sampling/tolerance where needed.
+
+## Hair Contact Culler
+
+Use this on fitted native hair in a representative pose. In Object Mode, select
+one supported hair **CURVES** object and **1–31 garment MESH objects** in any order.
+Open **Helix Tools → Hair Contact Culler**, verify the list, and click
+**Build Hair Trim**. Each strand keeps its root-side bends up to the first
+radius-aware garment contact; the entire tail beyond it is removed.
+
+Compare with **Show Original**. **Auto** infers each root from the attachment
+surface, then endpoint thickness, then stored point order. If the wrong end
+survives, choose **First point** or **Last point** and rebuild.
+
+**Full / Low / Hide** control viewport detail. Renders use Full retained strand
+detail and the separate **Trim in render** switches. **Show Original** affects
+only the viewport. Garment visibility also controls its trim contribution.
+
+To extend an existing setup, select the hair and new meshes, click
+**Add Selected Garments**, then rebuild. Remove an item with its row's **X**.
+Rebuild after changes to pose, garment fit, hair, radii, root direction, or
+clearance: saved contacts do not find new collisions on every animation frame.
+**Maintenance + restore → Remove Setup** restores the authored groom.
+
+The initial release supports editable sampled POLY hair, fixed topology, explicit
+point radii, one material, uniform world scale, and one scene/view layer.
+See the [quickstart](../addons/hair_contact_culler/README.md) and
+[workflow and input limits](../addons/hair_contact_culler/WORKFLOW.md).
 
 ## Light Size and Shadow Control
 

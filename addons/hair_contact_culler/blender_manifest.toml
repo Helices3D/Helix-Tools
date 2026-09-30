@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+id = "hair_contact_culler"
+version = "0.2.1"
+name = "Hair Contact Culler"
+tagline = "Trim curve hair from garment contact to tip"
+maintainer = "Helices3D"
+type = "add-on"
+tags = ["Object"]
+blender_version_min = "5.2.2"
+blender_version_max = "5.2.3"
+license = ["SPDX:GPL-3.0-or-later"]

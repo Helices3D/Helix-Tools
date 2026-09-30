@@ -1,0 +1,4 @@
+# Preserve tested source and reproducible package bytes across checkouts.
+addons/hair_contact_culler/* -text
+addons/hair_contact_culler/*.py whitespace=cr-at-eol,-blank-at-eof
+addons/hair_contact_culler/LICENSE whitespace=cr-at-eol

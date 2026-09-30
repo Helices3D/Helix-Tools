@@ -11,17 +11,19 @@ from pathlib import Path
 
 import bpy
 
+from _hair_fixtures import make_garment, make_hair
+
 
 MODULE_NAMES = (
     "jump_by_time",
     "smart_empty",
     "camera_timeline_culler",
     "area_light_shadow_control",
+    "hair_contact_culler",
 )
 
-# These are the public operator names shipped in the supplied add-ons. Keeping
-# them registered preserves existing shortcuts and scripts when users upgrade.
-ORIGINAL_OPERATORS = (
+# Preserve existing operator names and verify the added hair tool's public API.
+PUBLIC_OPERATORS = (
     "jbt.jump_to_time",
     "object.add_smart_empty_baked",
     "object.camera_cull_timeline",
@@ -35,6 +37,12 @@ ORIGINAL_OPERATORS = (
     "alsc.apply_shadows",
     "alsc.eevee_scene_quality",
     "alsc.status_details",
+    "helix.hair_cull_build",
+    "helix.hair_cull_remove",
+    "helix.hair_cull_validate",
+    "helix.hair_cull_add_items",
+    "helix.hair_cull_remove_item",
+    "helix.hair_cull_help",
 )
 
 PROPERTY_OWNERS = (
@@ -101,8 +109,8 @@ class StandaloneIntegrationTests(unittest.TestCase):
     def test_supported_version(self):
         self.assertEqual(bpy.app.version, (5, 2, 2))
 
-    def test_original_operator_names_work_together(self):
-        for identifier in ORIGINAL_OPERATORS:
+    def test_public_operator_names_work_together(self):
+        for identifier in PUBLIC_OPERATORS:
             namespace, name = identifier.split(".", 1)
             operator = getattr(getattr(bpy.ops, namespace), name)
             with self.subTest(operator=identifier):
@@ -134,7 +142,7 @@ class StandaloneIntegrationTests(unittest.TestCase):
                     self.assertEqual(_properties(), self.baseline_properties)
                     for cls in self.classes:
                         self.assertFalse(cls.is_registered, cls.__name__)
-                    for identifier in ORIGINAL_OPERATORS:
+                    for identifier in PUBLIC_OPERATORS:
                         namespace, name = identifier.split(".", 1)
                         operator = getattr(getattr(bpy.ops, namespace), name)
                         with self.assertRaises(KeyError, msg=identifier):
@@ -148,6 +156,10 @@ class StandaloneIntegrationTests(unittest.TestCase):
                                     MODULE_NAMES,
                                     f"Handler leaked after disabling: {name}",
                                 )
+                    for module in self.modules:
+                        tick = getattr(module, "_tick", None)
+                        if tick is not None:
+                            self.assertFalse(bpy.app.timers.is_registered(tick))
                 finally:
                     self._enable()
                 self.assertEqual(_properties(), registered_properties)
@@ -178,7 +190,7 @@ class StandaloneIntegrationTests(unittest.TestCase):
         scene.area_light_shadow_control.size_reduction = 0.25
 
         # Save a real tracked target and ensure object references restore as
-        # Blender pointers, together with the four independent scene settings.
+        # Blender pointers, together with the independent scene settings.
         bpy.ops.object.empty_add(type="PLAIN_AXES")
         target = bpy.context.active_object
         target.name = "Integration Target"
@@ -189,6 +201,19 @@ class StandaloneIntegrationTests(unittest.TestCase):
         self.assertTrue(empty.helix_smart_empty.is_tracked)
         self.assertEqual(empty.helix_smart_empty.source_object, target)
 
+        hair = self.modules[-1]
+        source = make_hair("Integration Hair")
+        garment = make_garment("Integration Garment")
+        metadata = hair.create_bundle(source, [garment])
+        metadata.name = "Integration Hair Settings"
+        settings = metadata.helix_hair_cull
+        settings.root_mode = "LAST"
+        hair.compile_bundle(metadata)
+        settings.mode = "LOW"
+        settings.low_percent = 37
+        settings.preview_original = True
+        settings.items[0].render = False
+
         with tempfile.TemporaryDirectory(prefix="helix-integration-") as directory:
             path = str(Path(directory) / "all-addons.blend")
             self.assertEqual(bpy.ops.wm.save_as_mainfile(filepath=path), {"FINISHED"})
@@ -196,6 +221,9 @@ class StandaloneIntegrationTests(unittest.TestCase):
             scene.helix_smart_empty_settings.empty_size = 2.0
             scene.camera_cull_settings.tolerance = 99.0
             scene.area_light_shadow_control.size_reduction = 0.0
+            settings.mode = "OFF"
+            settings.preview_original = False
+            settings.low_percent = 1
             self.assertEqual(bpy.ops.wm.open_mainfile(filepath=path), {"FINISHED"})
 
         scene = bpy.context.scene
@@ -221,6 +249,20 @@ class StandaloneIntegrationTests(unittest.TestCase):
         self.assertEqual(empty.helix_smart_empty.owner_scene, scene)
         self.assertEqual(bpy.ops.jbt.jump_to_time(), {"FINISHED"})
         self.assertEqual(scene.frame_current, 82)
+        metadata = bpy.data.objects["Integration Hair Settings"]
+        settings = metadata.helix_hair_cull
+        self.assertEqual(settings.source, bpy.data.objects["Integration Hair"])
+        self.assertEqual(settings.compiled_source, settings.source)
+        self.assertEqual(settings.compiled_data, settings.source.data)
+        self.assertEqual(settings.items[0].obj, bpy.data.objects["Integration Garment"])
+        self.assertEqual(settings.compiled_items[0].obj, settings.items[0].obj)
+        self.assertEqual(settings.root_mode, "LAST")
+        self.assertEqual(settings.mode, "LOW")
+        self.assertEqual(settings.low_percent, 37)
+        self.assertTrue(settings.preview_original)
+        self.assertFalse(settings.items[0].render)
+        hair.sync(metadata, deep=True)
+        self.assertTrue(settings.valid, settings.status)
 
 
 if __name__ == "__main__":
