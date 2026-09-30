@@ -1,0 +1,52 @@
+{
+  "prepared_date": "2026-09-30",
+  "repository_target": "Helices3D/Helix-Tools",
+  "jump_source_selection": "User confirmed use of the installed Blender 4.1 copy",
+  "addons": [
+    {
+      "tool": "light_control",
+      "name": "Light Size and Shadow Control",
+      "version": "1.1.0",
+      "author": "Codex",
+      "minimum_blender": "5.2.0",
+      "bundle_path": "addons/area_light_shadow_control/__init__.py",
+      "sha256": "bde8963a2fc32e6485e1706f2e169c2fbff959a9d99a3d3df3dbd785675e2b44",
+      "license_declared": "GPL-3.0-or-later",
+      "source_modified": false
+    },
+    {
+      "tool": "jump_by_time",
+      "name": "Jump By Time (seconds:frames)",
+      "version": "1.0.0",
+      "author": "ChatGPT",
+      "minimum_blender": "3.0.0",
+      "bundle_path": "addons/jump_by_time.py",
+      "sha256": "048b5e1a9da3dd80149ca1c842211b032b9d52866695e5918153c27b9db2834a",
+      "license_declared": "Not specified in source",
+      "source_modified": false
+    },
+    {
+      "tool": "smart_empty",
+      "name": "Smart Empty Adder (Baked)",
+      "version": "1.4",
+      "author": "Gemini",
+      "minimum_blender": "3.0.0",
+      "bundle_path": "addons/Smart Add Empty V1.py",
+      "sha256": "c41025671fecb04056826614a65a9f192afd4d52be5900251c301fb67ef76212",
+      "license_declared": "Not specified in source",
+      "source_modified": false
+    },
+    {
+      "tool": "camera_cull",
+      "name": "Camera Timeline Culler",
+      "version": "1.0.1",
+      "author": "OpenAI",
+      "minimum_blender": "4.3.0",
+      "bundle_path": "addons/camera_timeline_culler.py",
+      "sha256": "9fb182ad4517510a7766c5f39d6f859fce9700d1345171b91965502f4c07e622",
+      "license_declared": "Not specified in source",
+      "source_modified": false
+    }
+  ],
+  "note": "Hashes identify supplied originals, not the maintained versions."
+}

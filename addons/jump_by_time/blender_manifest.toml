@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+id = "jump_by_time"
+version = "2.0.1"
+name = "Jump By Time"
+tagline = "Map external timestamps to Blender timeline frames"
+maintainer = "Helices3D"
+type = "add-on"
+tags = ["Animation"]
+blender_version_min = "5.2.2"
+blender_version_max = "5.2.3"
+license = ["SPDX:GPL-3.0-or-later"]

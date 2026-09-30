@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+id = "camera_timeline_culler"
+version = "2.0.0"
+name = "Camera Timeline Culler"
+tagline = "Hide geometry outside sampled animated camera views"
+maintainer = "Helices3D"
+type = "add-on"
+tags = ["Scene"]
+blender_version_min = "5.2.2"
+blender_version_max = "5.2.3"
+license = ["SPDX:GPL-3.0-or-later"]
