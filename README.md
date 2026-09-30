@@ -1,5 +1,7 @@
 # Helix Tools
 
+**Note:** These tools are mostly vibecoded, so you may encounter minor issues.
+
 Five independently installable tools by Helices3D for **Blender 5.2.2 LTS**.
 All panels share the **Helix Tools** tab in the 3D Viewport sidebar (`N`).
 
