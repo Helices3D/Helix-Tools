@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+id = "smart_empty"
+version = "2.0.0"
+name = "Smart Empty"
+tagline = "Create and manage independent bone and object helpers"
+maintainer = "Helices3D"
+type = "add-on"
+tags = ["Rigging"]
+blender_version_min = "5.2.2"
+blender_version_max = "5.2.3"
+license = ["SPDX:GPL-3.0-or-later"]

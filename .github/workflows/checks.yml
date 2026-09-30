@@ -1,0 +1,39 @@
+name: Blender add-on checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blender-5-2-2:
+    runs-on: ubuntu-24.04
+    env:
+      BLENDER_USER_RESOURCES: ${{ github.workspace }}/.blender-test-user
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install exact Blender Python API
+        run: python -m pip install --only-binary=:all: -r requirements-test.txt
+      - name: Run behavioral regressions
+        run: |
+          mkdir -p "$BLENDER_USER_RESOURCES"
+          python tests/run_tests.py --report test-results/blender.json
+      - name: Build the four extension archives
+        run: python scripts/build_releases.py
+      - name: Validate extension manifests and archive layout
+        run: python scripts/validate_releases.py
+      - name: Check clean release installation
+        run: python scripts/check_release_install.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: helix-tools-blender-5.2.2
+          path: |
+            dist/
+            test-results/

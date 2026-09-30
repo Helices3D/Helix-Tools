@@ -1,0 +1,2 @@
+# Blender 5.2.2 LTS uses Python 3.13. Run checks in a fresh environment.
+bpy==5.2.2
