@@ -5,6 +5,10 @@ Install from Disk** in **Blender 5.2.2 LTS**, then enable the installed extensio
 Open the 3D Viewport sidebar (`N`) and choose **Helix Tools**. Each tool installs
 and works independently; the tab simply groups their panels consistently.
 
+Click a section's disclosure header to collapse or expand its boxed controls.
+Each section folds independently; collapsing it only hides its controls and
+does not change the tool's settings or results.
+
 Save a backup of an existing `.blend` before upgrading. Disable the previous copy
 of each add-on before enabling its replacement: original operator names are
 preserved so existing shortcuts and scripts continue to work. Do not run both

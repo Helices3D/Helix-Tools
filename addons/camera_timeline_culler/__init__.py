@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Camera Timeline Culler",
     "author": "OpenAI, Helices3D",
-    "version": (2, 0, 0),
+    "version": (2, 0, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Hide geometry outside every sampled camera view; restore it at any time",
@@ -558,38 +558,41 @@ class VIEW3D_PT_camera_cull_timeline(bpy.types.Panel):
         layout = self.layout
         setup_layout(layout)
         scene, settings = context.scene, context.scene.camera_cull_settings
-        scan = section(layout, "Sampling", icon="VIEW_CAMERA")
-        scan.prop(settings, "scope")
-        scan.prop(settings, "tolerance", slider=True)
-        scan.prop(settings, "substeps")
-        start, end = _range(scene)
-        scan.label(text=f"Frames {start}–{end} · up to {(end - start) * settings.substeps + 1:,} samples")
-        scan.label(text="Keeps anything visible at a sample")
-        scan.label(text="Fast motion may need more samples", icon="INFO")
-        if settings.scope == "PREVIEW":
-            scan.label(text="Visibility outside this range is ignored", icon="ERROR")
-        if scene.camera is None and not any(marker.camera for marker in scene.timeline_markers):
-            scan.label(text="Assign a scene camera to begin", icon="INFO")
-        scan.operator("object.camera_cull_timeline", icon="VIEWZOOM")
+        scan = section(layout, "Sampling", icon="VIEW_CAMERA", section_id="sampling")
+        if scan is not None:
+            scan.prop(settings, "scope")
+            scan.prop(settings, "tolerance", slider=True)
+            scan.prop(settings, "substeps")
+            start, end = _range(scene)
+            scan.label(text=f"Frames {start}–{end} · up to {(end - start) * settings.substeps + 1:,} samples")
+            scan.label(text="Keeps anything visible at a sample")
+            scan.label(text="Fast motion may need more samples", icon="INFO")
+            if settings.scope == "PREVIEW":
+                scan.label(text="Visibility outside this range is ignored", icon="ERROR")
+            if scene.camera is None and not any(marker.camera for marker in scene.timeline_markers):
+                scan.label(text="Assign a scene camera to begin", icon="INFO")
+            scan.operator("object.camera_cull_timeline", icon="VIEWZOOM")
         group = _scene_group(scene)
         if group is not None:
-            results = section(layout, "Results", icon="OUTLINER_COLLECTION")
-            error = _group_error(group, scene)
-            if error:
-                results.label(text="Results are shared or contain unrelated content", icon="ERROR")
-                results.label(text="Separate that content before using results")
-            else:
-                results.label(text=f"Hidden by collection: {len(group.objects)} objects")
-                results.label(text="Culled view" if group.hide_viewport or group.hide_render else "Full view")
-                results.operator("object.camera_cull_toggle", icon="HIDE_OFF")
-                results.operator("object.camera_cull_restore", icon="LOOP_BACK")
+            results = section(layout, "Results", icon="OUTLINER_COLLECTION", section_id="results")
+            if results is not None:
+                error = _group_error(group, scene)
+                if error:
+                    results.label(text="Results are shared or contain unrelated content", icon="ERROR")
+                    results.label(text="Separate that content before using results")
+                else:
+                    results.label(text=f"Hidden by collection: {len(group.objects)} objects")
+                    results.label(text="Culled view" if group.hide_viewport or group.hide_render else "Full view")
+                    results.operator("object.camera_cull_toggle", icon="HIDE_OFF")
+                    results.operator("object.camera_cull_restore", icon="LOOP_BACK")
         if "camera_cull_last_samples" in scene:
             layout.label(text=f"Last scan: {scene['camera_cull_last_samples']:,} samples ({scene['camera_cull_last_range']})")
-        help_box = section(layout, "About", icon="INFO")
-        help_box.label(text="Reversible; no visibility keyframes")
-        help_box.label(text="Rescan after camera or scene changes")
-        help_box.label(text="Shared, instanced and uncertain bounds stay")
-        help_box.label(text="Check reflections, shadows and motion blur")
+        help_box = section(layout, "About", icon="INFO", section_id="about")
+        if help_box is not None:
+            help_box.label(text="Reversible; no visibility keyframes")
+            help_box.label(text="Rescan after camera or scene changes")
+            help_box.label(text="Shared, instanced and uncertain bounds stay")
+            help_box.label(text="Check reflections, shadows and motion blur")
 
 
 CLASSES = (CameraCullSettings, OBJECT_OT_camera_cull_timeline, OBJECT_OT_camera_cull_toggle,

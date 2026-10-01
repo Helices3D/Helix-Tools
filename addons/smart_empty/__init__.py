@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Smart Empty",
     "author": "Gemini, Helices3D",
-    "version": (2, 0, 0),
+    "version": (2, 0, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools > Smart Empty",
     "description": "Create independent object or bone anchors and manage them per rig",
@@ -462,44 +462,46 @@ class SMART_EMPTY_PT_panel(bpy.types.Panel):
         layout = self.layout
         setup_layout(layout)
         settings = context.scene.helix_smart_empty_settings
-        create = section(layout, "Create Anchor", 'EMPTY_AXIS')
-        if context.mode == 'POSE' and context.active_pose_bone:
-            create.label(text=f"Bone: {context.active_pose_bone.name}", icon='BONE_DATA')
-            create.prop(settings, "bone_point")
-        elif context.mode == 'OBJECT' and context.active_object:
-            create.label(text=f"Object: {context.active_object.name}", icon='OBJECT_DATA')
-        else:
-            create.label(text="Select an object or a pose bone", icon='INFO')
-        create.prop(settings, "display_type")
-        create.prop(settings, "empty_size")
-        create.prop(settings, "name_suffix")
-        row = create.row(align=True)
-        row.prop(settings, "show_name")
-        row.prop(settings, "show_in_front")
-        create.prop(settings, "use_local_orientation")
-        create.operator("object.add_smart_empty_baked", text="Add Smart Empty", icon='ADD')
+        create = section(layout, "Create Anchor", 'EMPTY_AXIS', section_id="create_anchor")
+        if create is not None:
+            if context.mode == 'POSE' and context.active_pose_bone:
+                create.label(text=f"Bone: {context.active_pose_bone.name}", icon='BONE_DATA')
+                create.prop(settings, "bone_point")
+            elif context.mode == 'OBJECT' and context.active_object:
+                create.label(text=f"Object: {context.active_object.name}", icon='OBJECT_DATA')
+            else:
+                create.label(text="Select an object or a pose bone", icon='INFO')
+            create.prop(settings, "display_type")
+            create.prop(settings, "empty_size")
+            create.prop(settings, "name_suffix")
+            row = create.row(align=True)
+            row.prop(settings, "show_name")
+            row.prop(settings, "show_in_front")
+            create.prop(settings, "use_local_orientation")
+            create.operator("object.add_smart_empty_baked", text="Add Smart Empty", icon='ADD')
 
-        manage = section(layout, "Tracked Anchors", 'OUTLINER_OB_EMPTY')
-        manage.prop(settings, "rig")
-        manage.operator("object.smart_empty_use_active_rig", icon='ARMATURE_DATA')
-        row = manage.row(align=True)
-        row.enabled = settings.rig is not None
-        row.operator("object.smart_empty_rig_visibility", text="Hide Empties", icon='HIDE_ON').action = 'HIDE'
-        row.operator("object.smart_empty_rig_visibility", text="Restore Visibility", icon='HIDE_OFF').action = 'RESTORE'
-        manage.label(text="Viewport only; restore keeps prior hidden states", icon='INFO')
-        manage.prop(settings, "list_scope")
-        objects = tracked_empties(context.scene)
-        if settings.list_scope == 'RIG':
-            objects = [obj for obj in objects if settings.rig and obj.helix_smart_empty.rig == settings.rig]
-        manage.label(text=f"{len(objects)} tracked empties")
-        for obj in objects:
-            item = manage.column(align=True)
-            row = item.row(align=True)
-            row.label(text=obj.name, icon='EMPTY_AXIS')
-            select = row.row(align=True)
-            select.enabled = obj.name in context.view_layer.objects and not obj.hide_viewport and not obj.hide_select
-            select.operator("object.smart_empty_select", text="", icon='RESTRICT_SELECT_OFF').object_name = obj.name
-            item.label(text=_source_description(obj.helix_smart_empty))
+        manage = section(layout, "Tracked Anchors", 'OUTLINER_OB_EMPTY', section_id="tracked_anchors")
+        if manage is not None:
+            manage.prop(settings, "rig")
+            manage.operator("object.smart_empty_use_active_rig", icon='ARMATURE_DATA')
+            row = manage.row(align=True)
+            row.enabled = settings.rig is not None
+            row.operator("object.smart_empty_rig_visibility", text="Hide Empties", icon='HIDE_ON').action = 'HIDE'
+            row.operator("object.smart_empty_rig_visibility", text="Restore Visibility", icon='HIDE_OFF').action = 'RESTORE'
+            manage.label(text="Viewport only; restore keeps prior hidden states", icon='INFO')
+            manage.prop(settings, "list_scope")
+            objects = tracked_empties(context.scene)
+            if settings.list_scope == 'RIG':
+                objects = [obj for obj in objects if settings.rig and obj.helix_smart_empty.rig == settings.rig]
+            manage.label(text=f"{len(objects)} tracked empties")
+            for obj in objects:
+                item = manage.column(align=True)
+                row = item.row(align=True)
+                row.label(text=obj.name, icon='EMPTY_AXIS')
+                select = row.row(align=True)
+                select.enabled = obj.name in context.view_layer.objects and not obj.hide_viewport and not obj.hide_select
+                select.operator("object.smart_empty_select", text="", icon='RESTRICT_SELECT_OFF').object_name = obj.name
+                item.label(text=_source_description(obj.helix_smart_empty))
 
 
 classes = (

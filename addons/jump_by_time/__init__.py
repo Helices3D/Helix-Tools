@@ -15,7 +15,7 @@ from ._ui import section, setup_layout
 bl_info = {
     "name": "Jump By Time",
     "author": "ChatGPT, Helices3D",
-    "version": (2, 0, 1),
+    "version": (2, 0, 2),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Map external dialogue timestamps to scene frames with an adjustable start offset",
@@ -254,42 +254,45 @@ class JBT_PT_panel(bpy.types.Panel):
         layout = self.layout
         setup_layout(layout)
         scene = context.scene
-        timing = section(layout, "External Time")
-        timing.prop(scene, "jbt_input_mode")
-        if scene.jbt_input_mode == "TIMESTAMP":
-            timing.prop(scene, "jbt_timestamp")
-            timing.label(text="HH:MM:SS.mmm · elapsed time", icon="TIME")
-        else:
-            timing.prop(scene, "jbt_seconds")
-            timing.prop(scene, "jbt_frames")
+        timing = section(layout, "External Time", section_id="external_time")
+        if timing is not None:
+            timing.prop(scene, "jbt_input_mode")
+            if scene.jbt_input_mode == "TIMESTAMP":
+                timing.prop(scene, "jbt_timestamp")
+                timing.label(text="HH:MM:SS.mmm · elapsed time", icon="TIME")
+            else:
+                timing.prop(scene, "jbt_seconds")
+                timing.prop(scene, "jbt_frames")
 
-        mapping = section(layout, "Timeline Mapping")
-        mapping.prop(scene, "jbt_offset")
-        mapping.operator(JBT_OT_align_offset.bl_idname, icon="TRACKING")
-        mapping.prop(scene, "jbt_use_scene_fps")
-        if not scene.jbt_use_scene_fps:
-            mapping.prop(scene, "jbt_fps_override")
-        mapping.label(text=f"Effective frame rate: {selected_fps(scene):.6g} fps")
-        mapping.prop(scene, "jbt_range_policy")
+        mapping = section(layout, "Timeline Mapping", section_id="timeline_mapping")
+        if mapping is not None:
+            mapping.prop(scene, "jbt_offset")
+            mapping.operator(JBT_OT_align_offset.bl_idname, icon="TRACKING")
+            mapping.prop(scene, "jbt_use_scene_fps")
+            if not scene.jbt_use_scene_fps:
+                mapping.prop(scene, "jbt_fps_override")
+            mapping.label(text=f"Effective frame rate: {selected_fps(scene):.6g} fps")
+            mapping.prop(scene, "jbt_range_policy")
 
-        preview = section(layout, "Jump Preview")
-        valid = True
-        try:
-            requested = target_frame(scene)
-            result = resolve_target(scene, requested)
-            preview.label(text=f"Target frame: {result}", icon="TIME")
-            if requested != result:
-                preview.label(text=f"Requested {requested}; clamped to playback range", icon="INFO")
-            elif not scene.frame_start <= requested <= scene.frame_end:
-                preview.label(text="Outside playback range (allowed)", icon="INFO")
-        except (ValueError, OverflowError) as error:
-            valid = False
-            preview.label(text=str(error), icon="ERROR")
-        preview.label(text=f"Current frame: {scene.frame_current}")
-        preview.label(text=f"Elapsed: {format_timestamp((scene.frame_current - scene.jbt_offset) / selected_fps(scene))}")
-        row = preview.row()
-        row.enabled = valid
-        row.operator(JBT_OT_jump.bl_idname, icon="PLAY")
+        preview = section(layout, "Jump Preview", section_id="jump_preview")
+        if preview is not None:
+            valid = True
+            try:
+                requested = target_frame(scene)
+                result = resolve_target(scene, requested)
+                preview.label(text=f"Target frame: {result}", icon="TIME")
+                if requested != result:
+                    preview.label(text=f"Requested {requested}; clamped to playback range", icon="INFO")
+                elif not scene.frame_start <= requested <= scene.frame_end:
+                    preview.label(text="Outside playback range (allowed)", icon="INFO")
+            except (ValueError, OverflowError) as error:
+                valid = False
+                preview.label(text=str(error), icon="ERROR")
+            preview.label(text=f"Current frame: {scene.frame_current}")
+            preview.label(text=f"Elapsed: {format_timestamp((scene.frame_current - scene.jbt_offset) / selected_fps(scene))}")
+            row = preview.row()
+            row.enabled = valid
+            row.operator(JBT_OT_jump.bl_idname, icon="PLAY")
 
 
 classes = (JBT_OT_jump, JBT_OT_align_offset, JBT_PT_panel)

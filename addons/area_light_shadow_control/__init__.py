@@ -8,7 +8,7 @@ from the previous slider result. No handlers run when opening a project.
 bl_info = {
     "name": "Light Size and Shadow Control",
     "author": "Codex, Helices3D",
-    "version": (1, 3, 0),
+    "version": (1, 3, 1),
     "blender": (5, 2, 2),
     "location": "3D Viewport > Sidebar > Helix Tools",
     "description": "Scale area, point and spot light sources and apply Eevee shadows",
@@ -1052,23 +1052,24 @@ class VIEW3D_PT_alsc_main(Panel):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
         layout.label(text="Resize sources and tune Eevee shadows.")
-        targets = section(layout, "Target Lights", icon='LIGHT')
-        targets.prop(settings, "size_light_types", text="Source Types")
-        targets.prop(settings, "scope", text="Scope")
-        if settings.scope == 'COLLECTIONS':
-            row = targets.row()
-            row.template_list("ALSC_UL_collections", "", settings, "collections", settings, "collection_index", rows=3)
-            column = row.column(align=True)
-            column.operator("alsc.collection_add", text="", icon='ADD')
-            column.operator("alsc.collection_remove", text="", icon='REMOVE')
-            targets.label(text="Includes child collections.", icon='INFO')
-            if not any(item.collection is not None for item in settings.collections):
-                targets.label(text="Choose at least one collection.", icon='ERROR')
-        objects = _object_scope(context.scene, settings)
-        sized = sum(obj.data.type in _size_types(settings) for obj in objects)
-        targets.label(text=f"Size targets: {sized}; all types: {len(objects)}")
-        targets.label(text="Changing targets restores source sizes.", icon='INFO')
-        targets.label(text="Size Reduction also resets to 0.")
+        targets = section(layout, "Target Lights", icon='LIGHT', section_id="target_lights")
+        if targets is not None:
+            targets.prop(settings, "size_light_types", text="Source Types")
+            targets.prop(settings, "scope", text="Scope")
+            if settings.scope == 'COLLECTIONS':
+                row = targets.row()
+                row.template_list("ALSC_UL_collections", "", settings, "collections", settings, "collection_index", rows=3)
+                column = row.column(align=True)
+                column.operator("alsc.collection_add", text="", icon='ADD')
+                column.operator("alsc.collection_remove", text="", icon='REMOVE')
+                targets.label(text="Includes child collections.", icon='INFO')
+                if not any(item.collection is not None for item in settings.collections):
+                    targets.label(text="Choose at least one collection.", icon='ERROR')
+            objects = _object_scope(context.scene, settings)
+            sized = sum(obj.data.type in _size_types(settings) for obj in objects)
+            targets.label(text=f"Size targets: {sized}; all types: {len(objects)}")
+            targets.label(text="Changing targets restores source sizes.", icon='INFO')
+            targets.label(text="Size Reduction also resets to 0.")
 
 
 class VIEW3D_PT_alsc_sizes(Panel):
@@ -1083,28 +1084,30 @@ class VIEW3D_PT_alsc_sizes(Panel):
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        sizes = section(layout, "Source Size", icon='LIGHT_AREA')
-        sizes.prop(settings, "size_reduction", text="Reduction (Stops)", slider=True)
-        percentage = math.exp2(-float(settings.size_reduction)) * 100.0
-        sizes.label(text=f"Requested size: {percentage:.3g}% of baseline")
-        sizes.label(text="1 stop = half; 2 stops = quarter.")
-        if settings.size_light_types == 'AREA':
-            sizes.label(text="Controls area emitter dimensions.")
-        elif settings.size_light_types in {'POINT', 'SPOT'}:
-            sizes.label(text="Controls source radius.")
-            if settings.size_light_types == 'SPOT':
-                sizes.label(text="Spot cone angle is unchanged.")
-        else:
-            sizes.label(text="Area dimensions and point/spot radii.")
-        sizes.prop(settings, "minimum_size")
-        sizes.label(text="Sun angular size is not controlled.", icon='INFO')
-        baseline = section(layout, "Saved Baseline", icon='FILE_BLEND')
-        row = baseline.row(align=True)
-        row.operator("alsc.capture_sizes", text="Capture Sizes", icon='IMPORT')
-        row.operator("alsc.restore_sizes", text="Restore", icon='LOOP_BACK')
-        baseline.operator("alsc.refresh_sizes", icon='FILE_REFRESH')
-        baseline.label(text="Captured automatically; saved in this .blend.")
-        baseline.label(text="Recapture after editing source type or shape.")
+        sizes = section(layout, "Source Size", icon='LIGHT_AREA', section_id="source_size")
+        if sizes is not None:
+            sizes.prop(settings, "size_reduction", text="Reduction (Stops)", slider=True)
+            percentage = math.exp2(-float(settings.size_reduction)) * 100.0
+            sizes.label(text=f"Requested size: {percentage:.3g}% of baseline")
+            sizes.label(text="1 stop = half; 2 stops = quarter.")
+            if settings.size_light_types == 'AREA':
+                sizes.label(text="Controls area emitter dimensions.")
+            elif settings.size_light_types in {'POINT', 'SPOT'}:
+                sizes.label(text="Controls source radius.")
+                if settings.size_light_types == 'SPOT':
+                    sizes.label(text="Spot cone angle is unchanged.")
+            else:
+                sizes.label(text="Area dimensions and point/spot radii.")
+            sizes.prop(settings, "minimum_size")
+            sizes.label(text="Sun angular size is not controlled.", icon='INFO')
+        baseline = section(layout, "Saved Baseline", icon='FILE_BLEND', section_id="saved_baseline")
+        if baseline is not None:
+            row = baseline.row(align=True)
+            row.operator("alsc.capture_sizes", text="Capture Sizes", icon='IMPORT')
+            row.operator("alsc.restore_sizes", text="Restore", icon='LOOP_BACK')
+            baseline.operator("alsc.refresh_sizes", icon='FILE_REFRESH')
+            baseline.label(text="Captured automatically; saved in this .blend.")
+            baseline.label(text="Recapture after editing source type or shape.")
         if settings.last_skipped:
             layout.label(text=f"{settings.last_skipped} skipped; see details.", icon='ERROR')
         layout.operator("alsc.status_details", text="Last Operation Details", icon='INFO')
@@ -1122,24 +1125,26 @@ class VIEW3D_PT_alsc_shadows(Panel):
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        shadows = section(layout, "Eevee Shadow Detail", icon='LIGHT')
-        shadows.prop(settings, "shadow_preset")
-        if settings.shadow_preset == 'CRISP':
-            shadows.label(text="Finer detail can cost memory.", icon='INFO')
-            shadows.label(text="Check for shadow aliasing.")
-        shadows.prop(settings, "shadow_filter")
-        shadows.prop(settings, "shadow_resolution")
-        shadows.prop(settings, "absolute_resolution")
-        shadows.label(text="Absolute limit excludes Sun lights.")
-        shadows.prop(settings, "shadow_overblur")
-        shadows.prop(settings, "shadow_jitter")
-        apply = section(layout, "Apply Shadows", icon='CHECKMARK')
-        apply.prop(settings, "shadow_casting")
-        apply.prop(settings, "shadow_scope")
-        apply.operator("alsc.apply_shadows", icon='LIGHT')
-        apply.label(text="Includes every light type in the target scope.")
-        if context.scene.render.engine != 'BLENDER_EEVEE':
-            apply.label(text="Shadow detail settings are used by Eevee.", icon='INFO')
+        shadows = section(layout, "Eevee Shadow Detail", icon='LIGHT', section_id="shadow_detail")
+        if shadows is not None:
+            shadows.prop(settings, "shadow_preset")
+            if settings.shadow_preset == 'CRISP':
+                shadows.label(text="Finer detail can cost memory.", icon='INFO')
+                shadows.label(text="Check for shadow aliasing.")
+            shadows.prop(settings, "shadow_filter")
+            shadows.prop(settings, "shadow_resolution")
+            shadows.prop(settings, "absolute_resolution")
+            shadows.label(text="Absolute limit excludes Sun lights.")
+            shadows.prop(settings, "shadow_overblur")
+            shadows.prop(settings, "shadow_jitter")
+        apply = section(layout, "Apply Shadows", icon='CHECKMARK', section_id="apply_shadows")
+        if apply is not None:
+            apply.prop(settings, "shadow_casting")
+            apply.prop(settings, "shadow_scope")
+            apply.operator("alsc.apply_shadows", icon='LIGHT')
+            apply.label(text="Includes every light type in the target scope.")
+            if context.scene.render.engine != 'BLENDER_EEVEE':
+                apply.label(text="Shadow detail settings are used by Eevee.", icon='INFO')
 
 
 class VIEW3D_PT_alsc_scene(Panel):
@@ -1155,25 +1160,27 @@ class VIEW3D_PT_alsc_scene(Panel):
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        quality = section(layout, "Scene Quality Preset", icon='SCENE')
-        quality.label(text="Switches this scene to Eevee.")
-        quality.label(text="128 render samples; 4 rays; 12 steps")
-        quality.label(text="2 GB shadows; 1 GB volume probes")
-        quality.label(text="High quality normals; 16x filtering")
-        quality.label(text="GPU compositor; automatic precision")
-        quality.label(text="Automatic viewport pixel size")
-        quality.prop(settings, "viewport_jitter")
-        quality.operator("alsc.eevee_scene_quality", icon='SCENE')
-        quality.operator("alsc.restore_render_settings", icon='LOOP_BACK')
-        quality.label(text="Reversible: Restore above, or Blender Undo.", icon='INFO')
-        quality.label(text="Previous values are saved in this .blend.")
-        startup = section(layout, "Optional Blender Startup", icon='FILE_BLEND')
-        startup.label(text="Save this file's scenes, objects and layout.")
-        startup.label(text="Existing startup is always backed up first.")
-        startup.operator("alsc.save_suggested_startup", icon='FILE_TICK')
-        startup.operator("alsc.restore_previous_startup", icon='LOOP_BACK')
-        startup.label(text="Startup restore is separate from scene Undo.")
-        startup.operator("alsc.status_details", text="Startup and Operation Details", icon='INFO')
+        quality = section(layout, "Scene Quality Preset", icon='SCENE', section_id="scene_quality")
+        if quality is not None:
+            quality.label(text="Switches this scene to Eevee.")
+            quality.label(text="128 render samples; 4 rays; 12 steps")
+            quality.label(text="2 GB shadows; 1 GB volume probes")
+            quality.label(text="High quality normals; 16x filtering")
+            quality.label(text="GPU compositor; automatic precision")
+            quality.label(text="Automatic viewport pixel size")
+            quality.prop(settings, "viewport_jitter")
+            quality.operator("alsc.eevee_scene_quality", icon='SCENE')
+            quality.operator("alsc.restore_render_settings", icon='LOOP_BACK')
+            quality.label(text="Reversible: Restore above, or Blender Undo.", icon='INFO')
+            quality.label(text="Previous values are saved in this .blend.")
+        startup = section(layout, "Optional Blender Startup", icon='FILE_BLEND', section_id="startup")
+        if startup is not None:
+            startup.label(text="Save this file's scenes, objects and layout.")
+            startup.label(text="Existing startup is always backed up first.")
+            startup.operator("alsc.save_suggested_startup", icon='FILE_TICK')
+            startup.operator("alsc.restore_previous_startup", icon='LOOP_BACK')
+            startup.label(text="Startup restore is separate from scene Undo.")
+            startup.operator("alsc.status_details", text="Startup and Operation Details", icon='INFO')
 
 
 CLASSES = (

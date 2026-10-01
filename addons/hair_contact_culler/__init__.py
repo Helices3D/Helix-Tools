@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Compiled root-to-first-contact hair trims. No scene Text or private assets."""
-bl_info = {'name':'Hair Contact Culler', 'author':'Helices3D', 'version':(0,2,1),
+bl_info = {'name':'Hair Contact Culler', 'author':'Helices3D', 'version':(0, 2, 2),
            'blender':(5,2,2), 'location':'View3D > Sidebar > Helix Tools',
            'description':'Keep hair from its root to clothing contact; remove the remaining tip',
            'category':'Object'}
@@ -514,7 +514,8 @@ class HC_OT_help(bpy.types.Operator):
             ('5. Update clothing','Add Selected Garments or remove a row, then rebuild. Rebuild uses the list, not your current selection.'),
             ('6. Preview and render','Full, Low and Hide affect the viewport. Rendering uses all trimmed strands. Garment switches control where each garment trims.'),
             ('7. Refit or restore','Rebuild after changing the pose or clothing fit. Maintenance > Remove Setup restores the original groom.')]:
-            col=section(layout,title)
+            col=layout.box().column()
+            col.label(text=title)
             wrapped_label(col,text,context,width=54)
 
 
@@ -525,65 +526,70 @@ class HC_PT_panel(HelixPanel,bpy.types.Panel):
         source=resolve_source(context); meta=find_bundle(source)
         layout.operator(HC_OT_help.bl_idname,icon='HELP')
         if not meta:
-            setup=section(layout,'1. Choose hair + garments')
-            wrapped_label(setup,'Select one hair object and its clothing meshes in any order.',context)
-            if source:
-                setup.label(text=source.name,icon='CURVES')
-                for obj in context.selected_objects:
-                    if obj!=source: setup.label(text=obj.name,icon='MESH_DATA' if obj.type=='MESH' else 'ERROR')
             ready,message=build_readiness(context)
-            wrapped_label(setup,message,context,icon='CHECKMARK' if ready else 'INFO')
-            build=section(layout,'2. Build the trim')
-            wrapped_label(build,'Auto finds the base. Keep the root-side hair and remove the tip after contact.',context)
-            row=build.row(); row.enabled=ready; row.scale_y=1.3
-            row.operator(HC_OT_build.bl_idname,text='Build Hair Trim',icon='MOD_MASK')
+            setup=section(layout,'1. Choose hair + garments',section_id='garments')
+            if setup is not None:
+                wrapped_label(setup,'Select one hair object and its clothing meshes in any order.',context)
+                if source:
+                    setup.label(text=source.name,icon='CURVES')
+                    for obj in context.selected_objects:
+                        if obj!=source: setup.label(text=obj.name,icon='MESH_DATA' if obj.type=='MESH' else 'ERROR')
+                wrapped_label(setup,message,context,icon='CHECKMARK' if ready else 'INFO')
+            build=section(layout,'2. Build the trim',section_id='build_trim')
+            if build is not None:
+                wrapped_label(build,'Auto finds the base. Keep the root-side hair and remove the tip after contact.',context)
+                row=build.row(); row.enabled=ready; row.scale_y=1.3
+                row.operator(HC_OT_build.bl_idname,text='Build Hair Trim',icon='MOD_MASK')
             return
         s=meta.helix_hair_cull
-        setup=section(layout,'1. Garments + strand roots')
-        setup.label(text=s.source.name,icon='CURVES')
-        for i,item in enumerate(s.items):
-            garment=setup.box(); row=garment.row(align=True)
-            row.label(text=item.obj.name if item.obj else 'Missing garment',icon='MESH_DATA')
-            row.operator(HC_OT_remove_item.bl_idname,text='',icon='X').index=i
-            row=garment.row(align=True); row.prop(item,'viewport',toggle=True); row.prop(item,'render',toggle=True)
-            if item.obj:
-                hidden=[]
-                if not item.obj.visible_get(view_layer=context.view_layer): hidden.append('viewport')
-                if not _render_visible(item.obj,context.scene,context.view_layer): hidden.append('render')
-                if hidden: wrapped_label(garment,'Hidden in '+ ' / '.join(hidden)+'; no trim there.',context,icon='INFO')
-            else: wrapped_label(garment,'Remove this row and add the replacement garment.',context,icon='ERROR')
-        if not s.items: wrapped_label(setup,'Add at least one garment before rebuilding.',context,icon='ERROR')
-        setup.operator(HC_OT_add_items.bl_idname,icon='ADD')
-        setup.label(text='Strand root')
-        setup.prop(s,'root_mode',text='')
-        wrapped_label(setup,'Change the root if the wrong end is kept, then rebuild.',context)
+        setup=section(layout,'1. Garments + strand roots',section_id='garments')
+        if setup is not None:
+            setup.label(text=s.source.name,icon='CURVES')
+            for i,item in enumerate(s.items):
+                garment=setup.box(); row=garment.row(align=True)
+                row.label(text=item.obj.name if item.obj else 'Missing garment',icon='MESH_DATA')
+                row.operator(HC_OT_remove_item.bl_idname,text='',icon='X').index=i
+                row=garment.row(align=True); row.prop(item,'viewport',toggle=True); row.prop(item,'render',toggle=True)
+                if item.obj:
+                    hidden=[]
+                    if not item.obj.visible_get(view_layer=context.view_layer): hidden.append('viewport')
+                    if not _render_visible(item.obj,context.scene,context.view_layer): hidden.append('render')
+                    if hidden: wrapped_label(garment,'Hidden in '+ ' / '.join(hidden)+'; no trim there.',context,icon='INFO')
+                else: wrapped_label(garment,'Remove this row and add the replacement garment.',context,icon='ERROR')
+            if not s.items: wrapped_label(setup,'Add at least one garment before rebuilding.',context,icon='ERROR')
+            setup.operator(HC_OT_add_items.bl_idname,icon='ADD')
+            setup.label(text='Strand root')
+            setup.prop(s,'root_mode',text='')
+            wrapped_label(setup,'Change the root if the wrong end is kept, then rebuild.',context)
 
-        build=section(layout,'2. Build / update trim')
-        build.label(text='Trim ready' if s.valid else 'Rebuild required',icon='CHECKMARK' if s.valid else 'ERROR')
-        wrapped_label(build,s.status,context)
-        row=build.row(); row.scale_y=1.3; row.enabled=build_readiness(context)[0]
-        row.operator(HC_OT_build.bl_idname,text='Rebuild Hair Trim',icon='FILE_REFRESH')
-        wrapped_label(build,'Rebuild after changing the pose or clothing fit.',context,icon='INFO')
+        build=section(layout,'2. Build / update trim',section_id='build_trim')
+        if build is not None:
+            build.label(text='Trim ready' if s.valid else 'Rebuild required',icon='CHECKMARK' if s.valid else 'ERROR')
+            wrapped_label(build,s.status,context)
+            row=build.row(); row.scale_y=1.3; row.enabled=build_readiness(context)[0]
+            row.operator(HC_OT_build.bl_idname,text='Rebuild Hair Trim',icon='FILE_REFRESH')
+            wrapped_label(build,'Rebuild after changing the pose or clothing fit.',context,icon='INFO')
 
-        preview=section(layout,'3. Compare + preview')
-        row=preview.row(); row.enabled=s.valid
-        row.prop(s,'preview_original',toggle=True)
-        if not s.valid: wrapped_label(preview,'Showing original hair until you rebuild.',context)
-        elif s.preview_original: wrapped_label(preview,'Original hair shown in viewport. Turn this off to see the trim.',context,icon='INFO')
-        else: preview.label(text='Showing trimmed hair',icon='CURVES')
-        detail=preview.column(); detail.enabled=s.valid and not s.preview_original
-        detail.label(text='Viewport detail')
-        detail.row(align=True).prop(s,'mode',expand=True)
-        if s.mode=='LOW': detail.prop(s,'low_percent')
-        wrapped_label(preview,'Rendering uses all trimmed strands, including in Low or Hide.',context)
+        preview=section(layout,'3. Compare + preview',section_id='preview')
+        if preview is not None:
+            row=preview.row(); row.enabled=s.valid
+            row.prop(s,'preview_original',toggle=True)
+            if not s.valid: wrapped_label(preview,'Showing original hair until you rebuild.',context)
+            elif s.preview_original: wrapped_label(preview,'Original hair shown in viewport. Turn this off to see the trim.',context,icon='INFO')
+            else: preview.label(text='Showing trimmed hair',icon='CURVES')
+            detail=preview.column(); detail.enabled=s.valid and not s.preview_original
+            detail.label(text='Viewport detail')
+            detail.row(align=True).prop(s,'mode',expand=True)
+            if s.mode=='LOW': detail.prop(s,'low_percent')
+            wrapped_label(preview,'Rendering uses all trimmed strands, including in Low or Hide.',context)
 
-        header,advanced=layout.panel('HC_trim_advanced',default_closed=True); header.label(text='Advanced trim settings')
-        if advanced:
+        advanced=section(layout,'Advanced trim settings',section_id='advanced',default_closed=True)
+        if advanced is not None:
             advanced.prop(s,'allowance')
             wrapped_label(advanced,'Usually leave clearance at its default. Changing it requires a rebuild.',context)
             if s.root_summary: wrapped_label(advanced,'Root detection at last build: '+s.root_summary,context)
-        header,maintenance=layout.panel('HC_trim_maintenance',default_closed=True); header.label(text='Maintenance + restore')
-        if maintenance:
+        maintenance=section(layout,'Maintenance + restore',section_id='maintenance',default_closed=True)
+        if maintenance is not None:
             maintenance.operator(HC_OT_validate.bl_idname,icon='CHECKMARK')
             wrapped_label(maintenance,'Checks saved inputs; does not calculate new contacts.',context)
             maintenance.operator(HC_OT_remove.bl_idname,icon='LOOP_BACK')

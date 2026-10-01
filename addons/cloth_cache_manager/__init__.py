@@ -7,7 +7,7 @@ Adapted from Cloth Cache Manager 1.1, by Gemini and Helices3D.
 bl_info = {
     "name": "Cloth Cache Manager",
     "author": "Gemini + Executive Produced by Helices3D",
-    "version": (1, 2, 0),
+    "version": (1, 2, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Manage cloth-cage caches for reliable timeline navigation",
@@ -250,59 +250,62 @@ class VIEW3D_PT_ClothManager(bpy.types.Panel):
             layout.label(text="Add Cloth physics to an object to begin", icon="INFO")
             return
 
-        operations = section(layout, "Batch Cache Actions", icon="MOD_PHYSICS")
-        operations.label(text="Checked objects in the current view layer")
-        row = operations.row(align=True)
-        row.enabled = context.mode == "OBJECT"
-        row.operator(CLOTH_OT_BakeFromCache.bl_idname, icon="FILE_TICK")
-        row.operator(CLOTH_OT_ResetBakes.bl_idname, icon="FILE_REFRESH")
-        operations.label(text="Play from simulation start before baking")
-        operations.label(text="Bake before jumping through animation frames")
-        if context.mode != "OBJECT":
-            operations.label(text="Switch to Object Mode to manage caches", icon="INFO")
+        operations = section(layout, "Batch Cache Actions", icon="MOD_PHYSICS", section_id="cache_actions")
+        if operations is not None:
+            operations.label(text="Checked objects in the current view layer")
+            row = operations.row(align=True)
+            row.enabled = context.mode == "OBJECT"
+            row.operator(CLOTH_OT_BakeFromCache.bl_idname, icon="FILE_TICK")
+            row.operator(CLOTH_OT_ResetBakes.bl_idname, icon="FILE_REFRESH")
+            operations.label(text="Play from simulation start before baking")
+            operations.label(text="Bake before jumping through animation frames")
+            if context.mode != "OBJECT":
+                operations.label(text="Switch to Object Mode to manage caches", icon="INFO")
 
-        objects = section(layout, "Cloth Objects", icon="OBJECT_DATAMODE")
-        for obj in cloth_objects:
-            column = objects.column(align=True)
-            row = column.row(align=True)
-            row.enabled = obj.is_editable
-            row.prop(obj, PROPERTY_NAME, text="")
-            row.label(text=obj.name, icon="OBJECT_DATAMODE")
-            in_layer = obj.name in context.view_layer.objects
-            if not in_layer:
-                column.label(text="Excluded from this view layer; skipped", icon="INFO")
-            elif not obj.is_editable or obj.data is not None and not obj.data.is_editable:
-                column.label(text="Linked or non-editable; skipped", icon="LINKED")
-            for modifier in obj.modifiers:
-                if modifier.type != "CLOTH":
-                    continue
-                cache = modifier.point_cache
+        objects = section(layout, "Cloth Objects", icon="OBJECT_DATAMODE", section_id="cloth_objects")
+        if objects is not None:
+            for obj in cloth_objects:
+                column = objects.column(align=True)
                 row = column.row(align=True)
                 row.enabled = obj.is_editable
-                row.label(text=modifier.name, icon="MOD_CLOTH")
-                row.prop(modifier, "show_viewport", text="", icon=(
-                    "RESTRICT_VIEW_OFF" if modifier.show_viewport else "RESTRICT_VIEW_ON"
-                ))
-                row.prop(modifier, "show_render", text="", icon=(
-                    "RESTRICT_RENDER_OFF" if modifier.show_render else "RESTRICT_RENDER_ON"
-                ))
-                status = "Baked" if cache.is_baked else "Not Baked"
-                if cache.is_outdated:
-                    status += " · outdated"
-                column.label(text=f"Status: {status}", icon="FILE_TICK" if cache.is_baked else "FILE_CACHE")
-                column.label(text=cache.info or "No cache data")
-                column.label(text=f"Cache range: {cache.frame_start}–{cache.frame_end}")
-                if cache.use_external:
-                    column.label(text="External cache; skipped", icon="INFO")
-            objects.separator()
+                row.prop(obj, PROPERTY_NAME, text="")
+                row.label(text=obj.name, icon="OBJECT_DATAMODE")
+                in_layer = obj.name in context.view_layer.objects
+                if not in_layer:
+                    column.label(text="Excluded from this view layer; skipped", icon="INFO")
+                elif not obj.is_editable or obj.data is not None and not obj.data.is_editable:
+                    column.label(text="Linked or non-editable; skipped", icon="LINKED")
+                for modifier in obj.modifiers:
+                    if modifier.type != "CLOTH":
+                        continue
+                    cache = modifier.point_cache
+                    row = column.row(align=True)
+                    row.enabled = obj.is_editable
+                    row.label(text=modifier.name, icon="MOD_CLOTH")
+                    row.prop(modifier, "show_viewport", text="", icon=(
+                        "RESTRICT_VIEW_OFF" if modifier.show_viewport else "RESTRICT_VIEW_ON"
+                    ))
+                    row.prop(modifier, "show_render", text="", icon=(
+                        "RESTRICT_RENDER_OFF" if modifier.show_render else "RESTRICT_RENDER_ON"
+                    ))
+                    status = "Baked" if cache.is_baked else "Not Baked"
+                    if cache.is_outdated:
+                        status += " · outdated"
+                    column.label(text=f"Status: {status}", icon="FILE_TICK" if cache.is_baked else "FILE_CACHE")
+                    column.label(text=cache.info or "No cache data")
+                    column.label(text=f"Cache range: {cache.frame_start}–{cache.frame_end}")
+                    if cache.use_external:
+                        column.label(text="External cache; skipped", icon="INFO")
+                objects.separator()
 
-        about = section(layout, "About", icon="INFO")
-        about.label(text="Bake keeps cached frames; no new simulation")
-        about.label(text="Missing frames stay missing")
-        about.label(text="Includes every checked object's Cloth caches")
-        about.label(text="Reset frees bakes and invalidates cached frames")
-        about.label(text="Other physics on those objects may need")
-        about.label(text="resimulation too; freed bakes need it to restore")
+        about = section(layout, "About", icon="INFO", section_id="about")
+        if about is not None:
+            about.label(text="Bake keeps cached frames; no new simulation")
+            about.label(text="Missing frames stay missing")
+            about.label(text="Includes every checked object's Cloth caches")
+            about.label(text="Reset frees bakes and invalidates cached frames")
+            about.label(text="Other physics on those objects may need")
+            about.label(text="resimulation too; freed bakes need it to restore")
 
 
 CLASSES = (CLOTH_OT_BakeFromCache, CLOTH_OT_ResetBakes, VIEW3D_PT_ClothManager)

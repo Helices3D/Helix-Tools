@@ -79,6 +79,8 @@ simulation caches, promotion, invalidation, skipped targets, and preserved scene
 selection, frame, visibility, and simulation settings. The archive check extracts
 fresh ZIPs into separate Blender extension namespaces and uses Blender's supported
 enable/disable lifecycle, including its restricted registration context.
+Sidebar draw checks use registered scene data to exercise open and collapsed
+sections, independent headers, and unchanged tool settings.
 The official Blender validator checks the distributable manifests and layouts.
 
 Headless checks do not establish interactive panel appearance, keyboard workflows,

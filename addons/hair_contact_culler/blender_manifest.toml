@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "hair_contact_culler"
-version = "0.2.1"
+version = "0.2.2"
 name = "Hair Contact Culler"
 tagline = "Trim curve hair from garment contact to tip"
 maintainer = "Helices3D"
