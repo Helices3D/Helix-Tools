@@ -156,3 +156,43 @@ otherwise change. Linked/read-only targets are skipped with details. A light
 object itself shared across scenes remains the same object, so changes to that
 included object can affect all its scenes. Disabling the add-on does not restore
 sizes automatically; use **Restore** when you want the original appearance.
+
+## Cloth Cache Manager
+
+Use this to control cloth physics cages and other objects using Cloth modifiers
+from one panel, rather than clicking through each cage. Unbaked simulations
+usually need sequential playback from their simulation start; jumping ahead can
+produce incorrect motion or expensive simulation updates. Play from that start
+(often frame 0, depending on the cache range) through the animation frames you
+need, then preserve the simulated data with **Current Cache to Bake** before
+navigating those frames.
+
+Open **Helix Tools → Cloth Cache Manager** in Object Mode. Its checklist is
+independent of Blender's object selection; checked objects are included by
+default, and their choices are saved in the `.blend`. Each Cloth modifier shows
+its baked/outdated state, Blender's cache summary, and viewport/render switches.
+
+**Current Cache to Bake** promotes frames already simulated into a bake. It does
+not run a new simulation or fill missing frames; a partially played timeline
+produces a partial bake. Empty, outdated, and unverified caches are skipped, and
+existing bakes are left alone. Play the simulation again before promoting an
+outdated cache.
+
+**Reset Bakes** confirms before freeing the checked objects' cloth bakes and
+marking their existing simulation data outdated. Simulate again to rebuild it.
+Blender may also mark other physics caches on the same objects outdated, so
+check any additional simulations before continuing. Other objects are left
+alone. Reset is not a recoverable cache backup or a promise of ordinary Undo:
+disk cache files may remain until subsequent simulation regenerates them.
+
+Batch actions preserve scene selection, active object, frame/subframe, visibility,
+and simulation settings. Linked/read-only targets, external caches, and objects
+excluded from the current view layer are skipped. Reset also skips globally
+disabled objects that Blender cannot evaluate without changing visibility.
+Each operation reports processed, unchanged, skipped, and failed cache counts,
+with individual reasons; a failure on one target does not stop the others.
+
+Disable the older `cloth_cage_manager.py` copy before installing this extension.
+The **Cloth Cache Manager** title, original operator IDs, and
+`cloth_tool_selected` checkboxes are retained; the
+panel moves from **Cloth Tools** into the shared **Helix Tools** tab.

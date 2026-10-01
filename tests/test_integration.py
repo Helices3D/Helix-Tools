@@ -20,9 +20,10 @@ MODULE_NAMES = (
     "camera_timeline_culler",
     "area_light_shadow_control",
     "hair_contact_culler",
+    "cloth_cache_manager",
 )
 
-# Preserve existing operator names and verify the added hair tool's public API.
+# Preserve existing operator names and verify the public APIs added to the suite.
 PUBLIC_OPERATORS = (
     "jbt.jump_to_time",
     "object.add_smart_empty_baked",
@@ -43,6 +44,8 @@ PUBLIC_OPERATORS = (
     "helix.hair_cull_add_items",
     "helix.hair_cull_remove_item",
     "helix.hair_cull_help",
+    "cloth_manager.bake_from_cache",
+    "cloth_manager.reset_bakes",
 )
 
 PROPERTY_OWNERS = (
@@ -201,7 +204,7 @@ class StandaloneIntegrationTests(unittest.TestCase):
         self.assertTrue(empty.helix_smart_empty.is_tracked)
         self.assertEqual(empty.helix_smart_empty.source_object, target)
 
-        hair = self.modules[-1]
+        hair = next(module for module in self.modules if module.__name__ == "hair_contact_culler")
         source = make_hair("Integration Hair")
         garment = make_garment("Integration Garment")
         metadata = hair.create_bundle(source, [garment])
@@ -214,6 +217,17 @@ class StandaloneIntegrationTests(unittest.TestCase):
         settings.preview_original = True
         settings.items[0].render = False
 
+        mesh = bpy.data.meshes.new("Integration Cloth Mesh")
+        mesh.from_pydata(
+            [(-1, -1, 0), (1, -1, 0), (1, 1, 0), (-1, 1, 0)],
+            [], [(0, 1, 2, 3)],
+        )
+        cloth = bpy.data.objects.new("Integration Cloth", mesh)
+        scene.collection.objects.link(cloth)
+        cloth.modifiers.new("Integration Cloth Simulation", "CLOTH")
+        cloth.cloth_tool_selected = True
+        garment.cloth_tool_selected = False
+
         with tempfile.TemporaryDirectory(prefix="helix-integration-") as directory:
             path = str(Path(directory) / "all-addons.blend")
             self.assertEqual(bpy.ops.wm.save_as_mainfile(filepath=path), {"FINISHED"})
@@ -224,6 +238,8 @@ class StandaloneIntegrationTests(unittest.TestCase):
             settings.mode = "OFF"
             settings.preview_original = False
             settings.low_percent = 1
+            cloth.cloth_tool_selected = False
+            garment.cloth_tool_selected = True
             self.assertEqual(bpy.ops.wm.open_mainfile(filepath=path), {"FINISHED"})
 
         scene = bpy.context.scene
@@ -263,6 +279,10 @@ class StandaloneIntegrationTests(unittest.TestCase):
         self.assertFalse(settings.items[0].render)
         hair.sync(metadata, deep=True)
         self.assertTrue(settings.valid, settings.status)
+        cloth = bpy.data.objects["Integration Cloth"]
+        self.assertTrue(cloth.cloth_tool_selected)
+        self.assertFalse(bpy.data.objects["Integration Garment"].cloth_tool_selected)
+        self.assertEqual(cloth.modifiers["Integration Cloth Simulation"].type, "CLOTH")
 
 
 if __name__ == "__main__":

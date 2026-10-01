@@ -46,6 +46,17 @@
       "sha256": "9fb182ad4517510a7766c5f39d6f859fce9700d1345171b91965502f4c07e622",
       "license_declared": "Not specified in source",
       "source_modified": false
+    },
+    {
+      "tool": "cloth_cache_manager",
+      "name": "Cloth Cache Manager",
+      "version": "1.1",
+      "author": "Gemini + Executive Produced by Helices3D",
+      "minimum_blender": "4.1.1",
+      "uploaded_file": "cloth_cage_manager.py",
+      "sha256": "37693867fd4fa2f78dd996c6060c1af1e9f2371884edf31b9459c0c4e64d508a",
+      "license_declared": "Not specified in source",
+      "note": "User-supplied original; revised as cloth_cache_manager 1.2.0 for Blender 5.2.2 LTS under the repository license, preserving original credits."
     }
   ],
   "note": "Hashes identify supplied originals, not the maintained versions.",

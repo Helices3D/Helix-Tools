@@ -6,9 +6,12 @@ Maintained by Helices3D. The supplied add-ons originally credited:
 - Jump By Time: ChatGPT.
 - Smart Empty Adder: Gemini.
 - Camera Timeline Culler: OpenAI.
+- Cloth Cache Manager: Gemini + Executive Produced by Helices3D, supplied
+  separately as `cloth_cage_manager.py`.
 
-The September 30, 2026 source bundle is the starting point for these updates.
-Its original source hashes are retained in [provenance.json](provenance.json).
+The original four tools came from the September 30, 2026 source bundle;
+Cloth Cache Manager was supplied separately. Their original source hashes are
+retained in [provenance.json](provenance.json).
 These maintained versions use GPL-3.0-or-later, matching the lighting add-on's
 existing license. See [LICENSE](LICENSE).
 

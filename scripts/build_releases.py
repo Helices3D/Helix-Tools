@@ -9,7 +9,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("jump_by_time", "smart_empty", "camera_timeline_culler", "area_light_shadow_control",
-            "hair_contact_culler")
+            "hair_contact_culler", "cloth_cache_manager")
 
 
 def build(destination):

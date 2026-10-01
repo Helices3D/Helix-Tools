@@ -42,7 +42,7 @@ The prepared cloud environment includes the official full Blender executable.
 Activate its workspace paths before using it:
 
 ```bash
-source /workspace/.helix-tools/activate.sh
+source /workspace/.helix-tools/activate-tests.sh
 blender --version
 blender --background --factory-startup --disable-autoexec --threads 2 \
   --python-exit-code 1 --python tests/run_tests.py -- --report test-results/blender.json
@@ -54,9 +54,11 @@ blender --background --factory-startup --disable-autoexec --threads 2 \
 ```
 
 Validate each ZIP with `blender --command extension validate dist/<package>.zip`.
-The original four extensions are also installed and enabled in the workspace's saved user
+The extensions are also installed and enabled in the workspace's saved user
 preferences; a normal startup loads them. Factory startup keeps regression tests
-independent of those installed copies. The system `/usr/bin/blender` is 4.3.2;
+independent of those installed copies, and `activate-tests.sh` uses a separate,
+disposable profile for all four Blender user-resource paths. Use `activate.sh`
+instead to load the persistent installed copies. The system `/usr/bin/blender` is 4.3.2;
 activation selects `/workspace/.helix-tools/bin/blender` instead. The isolated
 `/workspace/.helix-tools/venv/bin/python` remains available for the API workflow.
 
@@ -72,7 +74,9 @@ Behavioral checks exercise time conversion, object and bone transforms, helper
 ownership and visibility, culling and restoration, durable light baselines,
 shared-data isolation, root-to-contact hair trimming, original/preview separation,
 and saving/reopening scenes. Integration checks enable all
-five packages together and verify registration cleanup. The archive check extracts
+six packages together and verify registration cleanup. Cloth checks exercise real
+simulation caches, promotion, invalidation, skipped targets, and preserved scene
+selection, frame, visibility, and simulation settings. The archive check extracts
 fresh ZIPs into separate Blender extension namespaces and uses Blender's supported
 enable/disable lifecycle, including its restricted registration context.
 The official Blender validator checks the distributable manifests and layouts.
@@ -84,12 +88,12 @@ a disposable project, and inspect representative rendered lighting/camera result
 Camera sampling remains an approximation even when every automated check passes.
 
 The GitHub Actions workflow runs the same API tests, builds, validation, and clean
-archive checks on Python 3.13. Its artifacts include the five ZIPs, hashes, and a
+archive checks on Python 3.13. Its artifacts include the six ZIPs, hashes, and a
 JSON test report. A local passing run does not imply that hosted CI has run.
 
 ## Build distributables
 
-`python scripts/build_releases.py` writes five versioned ZIPs, `SHA256SUMS`, and
+`python scripts/build_releases.py` writes six versioned ZIPs, `SHA256SUMS`, and
 `releases.json` to `dist/`. The archives contain the manifest and package entry
 point at their root, as Blender's extension installer expects. Fixed archive
 timestamps make builds from identical source byte-for-byte reproducible.

@@ -2,7 +2,7 @@
 
 **Note:** These tools are mostly vibecoded, so you may encounter minor issues.
 
-Five independently installable tools by Helices3D for **Blender 5.2.2 LTS**.
+Six independently installable tools by Helices3D for **Blender 5.2.2 LTS**.
 All panels share the **Helix Tools** tab in the 3D Viewport sidebar (`N`).
 
 All add-on source files are in the **[addons/ folder](addons/)**. Click an add-on's
@@ -15,6 +15,7 @@ name below to open its folder, or use its documentation link for instructions.
 | [Camera Timeline Culler](addons/camera_timeline_culler/) | Find geometry outside the camera throughout a sampled animation range, temporarily hide it, compare the result, and restore it. | [Usage](docs/usage.md#camera-timeline-culler) |
 | [Light Size and Shadow Control](addons/area_light_shadow_control/) | Adjust light size from saved baselines, tune shadows, and try reversible render presets with optional startup backups. | [Usage](docs/usage.md#light-size-and-shadow-control) |
 | [Hair Contact Culler](addons/hair_contact_culler/) | Trim native hair from its first garment contact through the tip, preserving the root and preceding bends. Compare the original and choose Full, Low, or Hide viewport detail. | [Workflow guide](addons/hair_contact_culler/WORKFLOW.md) |
+| [Cloth Cache Manager](addons/cloth_cache_manager/) | Batch-manage cloth physics cages and other Cloth objects: preserve simulated frames as bakes before timeline navigation, or reset their caches without clicking through each object. | [Usage](docs/usage.md#cloth-cache-manager) |
 
 Build the installable ZIPs with `python scripts/build_releases.py`, then
 install only the tools you want through **Preferences → Get Extensions → Install

@@ -100,6 +100,28 @@ def main():
             assert bpy.ops.helix.hair_cull_remove() == {"FINISHED"}
             assert hair.find_bundle(source) is None
             assert len(evaluated_data(source).points) == 4
+
+            # Use Blender's real cache: sequential evaluation fills a tiny cloth
+            # simulation, then the installed extension promotes and resets it.
+            assert bpy.ops.cloth_manager.bake_from_cache.get_rna_type()
+            assert bpy.ops.cloth_manager.reset_bakes.get_rna_type()
+            bpy.ops.mesh.primitive_grid_add(x_subdivisions=3, y_subdivisions=3, size=2)
+            cloth_object = bpy.context.object
+            cloth_object.name = "Archive Cloth"
+            cloth_modifier = cloth_object.modifiers.new("Archive Cloth Simulation", "CLOTH")
+            cloth_modifier.settings.quality = 1
+            cache = cloth_modifier.point_cache
+            cache.frame_start, cache.frame_end = 1, 4
+            cloth_object.cloth_tool_selected = True
+            for frame in range(1, 5):
+                scene.frame_set(frame)
+                cloth_object.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh_clear()
+            assert not cache.is_baked and not cache.is_outdated
+            assert bpy.ops.cloth_manager.bake_from_cache() == {"FINISHED"}
+            assert cache.is_baked
+            assert bpy.ops.cloth_manager.reset_bakes() == {"FINISHED"}
+            assert not cache.is_baked and cache.is_outdated
+            assert cloth_modifier.settings.quality == 1
             print(f"RELEASE_ARCHIVE_INSTALL_SMOKE_OK: all {len(PACKAGES)} clean archives enabled together")
         finally:
             errors = []
