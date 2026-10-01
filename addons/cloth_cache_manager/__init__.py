@@ -7,7 +7,7 @@ Adapted from Cloth Cache Manager 1.1, by Gemini and Helices3D.
 bl_info = {
     "name": "Cloth Cache Manager",
     "author": "Gemini + Executive Produced by Helices3D",
-    "version": (1, 2, 1),
+    "version": (1, 2, 2),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Manage cloth-cage caches for reliable timeline navigation",
@@ -337,7 +337,9 @@ def register():
             description="Include every Cloth modifier on this object; independent of Blender object selection",
             default=True,
         ))
-        _owned_property = bpy.types.Object.bl_rna.properties[PROPERTY_NAME]
+        # Keep the original Python definition alive. RNA wrappers compare by
+        # address, which Blender can reuse after another add-on replaces it.
+        _owned_property = bpy.types.Object.__dict__[PROPERTY_NAME]
     except Exception:
         unregister()
         raise
@@ -346,8 +348,8 @@ def register():
 def unregister():
     global _owned_property
     if _owned_property is not None:
-        current = bpy.types.Object.bl_rna.properties.get(PROPERTY_NAME)
-        if current == _owned_property:
+        current = bpy.types.Object.__dict__.get(PROPERTY_NAME)
+        if current is _owned_property:
             delattr(bpy.types.Object, PROPERTY_NAME)
         _owned_property = None
     for cls in reversed(_registered_classes):

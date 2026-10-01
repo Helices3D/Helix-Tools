@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "cloth_cache_manager"
-version = "1.2.1"
+version = "1.2.2"
 name = "Cloth Cache Manager"
 tagline = "Promote and reset cloth caches across checked objects"
 maintainer = "Helices3D"
