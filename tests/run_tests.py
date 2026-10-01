@@ -24,6 +24,16 @@ def require_isolated_profile():
             raise RuntimeError(f"{resource} escaped the disposable profile: {actual}")
 
 
+def report_ci_failures(result):
+    """Expose tracebacks through GitHub annotations as well as runner logs."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+    for test, traceback in (*result.failures, *result.errors):
+        message = f"{test.id()}\n{traceback}"
+        message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::error title=Blender regression::{message}")
+
+
 def main():
     import bpy
 
@@ -39,6 +49,7 @@ def main():
     if suite.countTestCases() == 0:
         raise RuntimeError("No tests discovered")
     result = unittest.TextTestRunner(verbosity=2).run(suite)
+    report_ci_failures(result)
     if options.report:
         options.report.parent.mkdir(parents=True, exist_ok=True)
         options.report.write_text(json.dumps({
