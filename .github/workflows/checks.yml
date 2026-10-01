@@ -2,6 +2,8 @@ name: Blender add-on checks
 
 on:
   push:
+    branches: ['**']
+    tags: ['helix-tools-v*']
   pull_request:
   workflow_dispatch:
 
@@ -42,3 +44,31 @@ jobs:
           path: |
             dist/
             test-results/
+
+  publish-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/helix-tools-v')
+    needs: blender-5-2-2
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v4
+        with:
+          name: helix-tools-blender-5.2.2
+          path: release-build
+      - name: Prepare verified release downloads
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python scripts/prepare_release.py --dist release-build/dist --output release-assets --tag "$RELEASE_TAG"
+      - name: Publish stable and versioned downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" release-assets/*.zip release-assets/SHA256SUMS release-assets/releases.json \
+            --verify-tag --title "Helix Tools ${RELEASE_TAG#helix-tools-v}" --notes-file release-assets/RELEASE_NOTES.md

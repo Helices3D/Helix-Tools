@@ -1,9 +1,19 @@
 # Usage and migration
 
-Install any of the versioned ZIPs through **Preferences → Get Extensions →
-Install from Disk** in **Blender 5.2.2 LTS**, then enable the installed extensions.
-Open the 3D Viewport sidebar (`N`) and choose **Helix Tools**. Each tool installs
-and works independently; the tab simply groups their panels consistently.
+Download the [complete Helix Tools suite](https://github.com/Helices3D/Helix-Tools/releases/latest/download/helix_tools.zip)
+to install all six tools once, or choose individual ZIPs from the
+[README's tool list](../README.md). Install your chosen ZIPs through
+**Preferences → Get Extensions → Install from Disk** in **Blender 5.2.2 LTS**,
+then enable the installed extensions. The complete suite is one extension;
+individual tools are separate extensions that each work independently.
+Open the 3D Viewport sidebar (`N`) and choose **Helix Tools**.
+
+Before enabling the suite, disable all individual Helix tool extensions. When
+switching back to individual installs, disable the suite first. Both choices use
+the same saved scene settings, object tracking, and operator names, so existing
+projects and shortcuts continue to work. Keep only one enabled copy of each tool.
+Versioned ZIPs are also available on the
+[releases page](https://github.com/Helices3D/Helix-Tools/releases).
 
 Click a section's disclosure header to collapse or expand its boxed controls.
 Each section folds independently; collapsing it only hides its controls and

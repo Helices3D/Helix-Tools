@@ -3,6 +3,9 @@
 The supported user runtime is **Blender 5.2.2 LTS**. Each directory under
 `addons/` is a complete, independent extension. They share layout conventions
 through independent local `_ui.py` helpers; installing one never requires another.
+The optional `suite/helix_tools/` wrapper packages the same six tools into one
+extension. Both installation choices preserve the tools' operator IDs and saved
+data keys. Disable one choice before enabling the other.
 
 ## Run the checks
 
@@ -74,7 +77,10 @@ Behavioral checks exercise time conversion, object and bone transforms, helper
 ownership and visibility, culling and restoration, durable light baselines,
 shared-data isolation, root-to-contact hair trimming, original/preview separation,
 and saving/reopening scenes. Integration checks enable all
-six packages together and verify registration cleanup. Cloth checks exercise real
+six standalone packages together and verify registration cleanup. Suite checks
+exercise its complete registration, rollback after a component fails, cleanup,
+duplicate-copy rejection, and switching between suite and individual installs
+while retaining saved tool settings. Cloth checks exercise real
 simulation caches, promotion, invalidation, skipped targets, and preserved scene
 selection, frame, visibility, and simulation settings. The archive check extracts
 fresh ZIPs into separate Blender extension namespaces and uses Blender's supported
@@ -90,17 +96,37 @@ a disposable project, and inspect representative rendered lighting/camera result
 Camera sampling remains an approximation even when every automated check passes.
 
 The GitHub Actions workflow runs the same API tests, builds, validation, and clean
-archive checks on Python 3.13. Its artifacts include the six ZIPs, hashes, and a
+archive checks on Python 3.13. Its artifacts include the seven ZIPs, hashes, and a
 JSON test report. A local passing run does not imply that hosted CI has run.
 
 ## Build distributables
 
-`python scripts/build_releases.py` writes six versioned ZIPs, `SHA256SUMS`, and
-`releases.json` to `dist/`. The archives contain the manifest and package entry
-point at their root, as Blender's extension installer expects. Fixed archive
+`python scripts/build_releases.py` writes six standalone versioned ZIPs and one
+complete-suite ZIP, `SHA256SUMS`, and `releases.json` to `dist/`. The initial suite
+archive is `helix_tools-1.0.0.zip`. Every archive contains its manifest and package
+entry point at the root, as Blender's extension installer expects. The suite
+archive includes the wrapper from `suite/helix_tools/` and all six tool packages;
+it installs directly without unpacking or installing nested ZIPs. Fixed archive
 timestamps make builds from identical source byte-for-byte reproducible.
 Generated artifacts are ignored by Git; source, tests, and packaging scripts
 remain reviewable.
 
 Update the package manifest and `bl_info` together when releasing a new version.
 Preserve legacy operator IDs and saved-data keys, or add a tested migration.
+Whenever a component changes, also bump the suite wrapper's manifest and
+`bl_info` versions so the complete download receives a new version.
+
+## Publish downloads
+
+Use a tag of the form `helix-tools-v<bundle_version>`, matching the suite wrapper's
+version, to publish a release. The tag workflow runs the checks and builds all
+seven archives from the same commit before publishing. `scripts/prepare_release.py`
+prepares the assets and release metadata. Each release includes versioned ZIPs,
+hashes, metadata, and stable download aliases: `helix_tools.zip` for the complete
+suite and `<tool_id>.zip` for each standalone tool. The README links these aliases
+through GitHub's `releases/latest/download/` route.
+
+Ordinary pushes to `main` build and check artifacts without publishing a release.
+Publish the tag after the corresponding `main` checks pass, then verify the
+published asset links and hashes. Updating source on `main` alone does not change
+the public downloads.
