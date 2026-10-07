@@ -8,10 +8,10 @@ from the previous slider result. No handlers run when opening a project.
 bl_info = {
     "name": "Light Size and Shadow Control",
     "author": "Codex, Helices3D",
-    "version": (1, 3, 1),
+    "version": (1, 3, 2),
     "blender": (5, 2, 2),
     "location": "3D Viewport > Sidebar > Helix Tools",
-    "description": "Scale area, point and spot light sources and apply Eevee shadows",
+    "description": "Resize light sources and enable Eevee shadows in one click",
     "category": "Lighting",
     "license": "GPL-3.0-or-later",
 }
@@ -362,18 +362,20 @@ class ALSC_ActiveLight(PropertyGroup):
 
 class ALSC_Settings(PropertyGroup):
     size_light_types: EnumProperty(
-        name="Size Controls For", items=[
-            ('AREA', "Area Lights", "Resize area emitter dimensions only"),
-            ('POINT', "Point Lights", "Resize point-light source radii only"),
-            ('SPOT', "Spot Lights", "Resize spot-light source radii only, preserving cone angle and blend"),
-            ('ALL3', "Area, Point and Spot", "Resize all three source types; sun lights are excluded"),
+        name="Light Type", items=[
+            ('AREA', "Area", "Resize area emitter dimensions only"),
+            ('POINT', "Point", "Resize point-light source radii only"),
+            ('SPOT', "Spot", "Resize spot-light source radii only, preserving cone angle and blend"),
+            ('ALL3', "Area, Point, Spot", "Resize all three source types; sun lights are excluded"),
         ], default='AREA', update=_scope_update, options=set(),
+        description="Choose which light sources to resize; shadow settings still affect every light type in their target scope. Changing this restores controlled sizes and resets reduction",
     )
     scope: EnumProperty(
         name="Lights to Control", items=[
             ('ALL', "Entire Scene", "Include every light object in the current scene"),
-            ('COLLECTIONS', "Chosen Collections", "Include the listed collections and all descendants"),
+            ('COLLECTIONS', "Collections", "Include the listed collections and all descendants"),
         ], default='ALL', update=_scope_update,
+        description="Choose the scene or collection scope for source sizing and targeted shadows; changing this restores controlled source sizes and resets reduction",
     )
     collections: CollectionProperty(type=ALSC_CollectionItem)
     collection_index: IntProperty(default=0)
@@ -390,7 +392,7 @@ class ALSC_Settings(PropertyGroup):
         description="Positive lower bound for the shorter area-emitter dimension or point/spot source radius; area axes use one multiplier to preserve aspect ratio",
     )
     shadow_preset: EnumProperty(
-        name="Starting Point", items=[
+        name="Preset", items=[
             ('DETAILED', "Detailed", "Filter 1 px, adaptive resolution limit 0.001, jitter on, overblur 0%"),
             ('CRISP', "Crisp Detail", "Filter 0.5 px and adaptive limit 0.0005; finer detail may require more shadow memory and can reveal aliasing"),
             ('CUSTOM', "Custom", "Use the values below"),
@@ -402,38 +404,38 @@ class ALSC_Settings(PropertyGroup):
         description="Shadow-map filtering radius; 1 px is the balanced starting point, 0.5 px retains more edge detail but may reveal aliasing",
     )
     shadow_resolution: FloatProperty(
-        name="Resolution Limit", default=0.001, min=0.000001, max=100.0,
+        name="Detail Limit", default=0.001, min=0.000001, max=100.0,
         soft_max=0.01, subtype='DISTANCE', unit='LENGTH', precision=6, options=set(), update=_shadow_custom_update,
         description="Minimum shadow-map detail limit; adaptive mode accounts for screen coverage, and lower limits can increase shadow-pool use; 0.001 displays as 1 mm with metre scene units",
     )
     absolute_resolution: BoolProperty(
-        name="Absolute Resolution Limit", default=False, options=set(), update=_shadow_custom_update,
+        name="Fixed Distance", default=False, options=set(), update=_shadow_custom_update,
         description="For area, point and spot lights: anchor resolution one Blender unit from the light origin instead of using adaptive screen coverage; can increase shadow-memory requirements; sun lights have no absolute-limit setting",
     )
     shadow_overblur: FloatProperty(
-        name="Overblur", default=0.0, min=0.0, max=100.0, subtype='PERCENTAGE',
+        name="Extra Blur", default=0.0, min=0.0, max=100.0, subtype='PERCENTAGE',
         precision=1, options=set(), update=_shadow_custom_update,
         description="Extra jitter-shadow blur; 0% preserves physical emitter-size softness",
     )
     shadow_jitter: BoolProperty(
-        name="Jitter", default=True, options=set(), update=_shadow_custom_update,
+        name="Shadow Jitter", default=True, options=set(), update=_shadow_custom_update,
         description="Enable per-light jittered shadows for more accurate soft shadows; increases rendering cost",
     )
     shadow_casting: EnumProperty(
         name="Cast Shadows", items=[
-            ('KEEP', "Preserve Each Light", "Keep the existing shadow on/off state; recommended for rigs with shadow-free fill and rim lights"),
-            ('ON', "Enable on All Targets", "Enable shadow casting on every included light"),
-            ('OFF', "Disable on All Targets", "Disable shadow casting on every included light"),
+            ('KEEP', "Keep Existing", "Keep the existing shadow on/off state; recommended for rigs with shadow-free fill and rim lights"),
+            ('ON', "Enable", "Enable shadow casting on every included light"),
+            ('OFF', "Disable", "Disable shadow casting on every included light"),
         ], default='KEEP', options=set(),
     )
     shadow_scope: EnumProperty(
         name="Shadow Targets", items=[
-            ('MATCH', "Same Scope", "Apply to all light types within the chosen size-control scope"),
-            ('ALL', "Every Scene Light", "Apply to all light types in the scene, including lights outside the chosen collections"),
+            ('MATCH', "Target Scope", "Apply to every light type in Target Lights, regardless of the sizing filter"),
+            ('ALL', "Entire Scene", "Apply to all light types in the scene, including lights outside the chosen collections"),
         ], default='MATCH', options=set(),
     )
     viewport_jitter: BoolProperty(
-        name="Jitter in Viewport", default=True, options=set(),
+        name="Viewport Jitter", default=True, options=set(),
         description="Also enable jittered shadows during viewport interaction; can noticeably slow navigation",
     )
     last_status: StringProperty(default="Move the slider to capture baselines automatically.", options={'HIDDEN'})
@@ -564,6 +566,103 @@ class ALSC_OT_apply_sizes(Operator):
         return {'FINISHED'}
 
 
+def _set_light_shadow_values(light, values):
+    for name, value in values.items():
+        setattr(light, name, value)
+
+
+def _apply_scene_shadows(scene, settings, *, every=False, casting=None, prepared=None):
+    lights, skipped, isolated, errors = (
+        _prepare_lights(scene, settings, size_only=False, every_scene_light=every)
+        if prepared is None else prepared
+    )
+    values = {
+        "shadow_filter_radius": settings.shadow_filter,
+        "shadow_maximum_resolution": settings.shadow_resolution,
+        "use_absolute_resolution": settings.absolute_resolution,
+        "shadow_jitter_overblur": settings.shadow_overblur,
+        "use_shadow_jitter": settings.shadow_jitter,
+    }
+    casting = settings.shadow_casting if casting is None else casting
+    if casting != 'KEEP':
+        values["use_shadow"] = casting == 'ON'
+    applied = 0
+    suns = 0
+    for light in lights:
+        light_values = dict(values)
+        if light.type == 'SUN':
+            light_values.pop("use_absolute_resolution")
+            suns += 1
+        previous = {}
+        try:
+            previous = {name: getattr(light, name) for name in light_values}
+            _set_light_shadow_values(light, light_values)
+            applied += 1
+        except _EXPECTED_ERRORS as exc:
+            skipped += 1
+            errors.append(f"{light.name}: shadow update failed ({exc})")
+            for name, value in previous.items():
+                try:
+                    setattr(light, name, value)
+                except _EXPECTED_ERRORS as rollback_exc:
+                    errors.append(f"{light.name}: could not restore {name} ({rollback_exc})")
+    suffix = f"; {isolated} shared data isolated" if isolated else ""
+    if suns:
+        suffix += f"; absolute limit applies to local lights only ({suns} sun)"
+    scope_name = "every scene light" if every else "the chosen scope"
+    _set_status(settings, f"Updated {applied} light datablocks in {scope_name}{suffix}.", skipped, errors)
+    return applied
+
+
+def _set_eevee_shadow_scene(scene, engine, enabled):
+    scene.render.engine = engine
+    scene.eevee.use_shadows = enabled
+
+
+def _shadow_preparation_snapshot(scene, settings):
+    objects = [(obj, obj.data) for obj in _object_scope(scene, settings)]
+    sizes = {}
+    for _, light in objects:
+        if light.type == 'AREA':
+            values = {"size": light.size, "size_y": light.size_y}
+        elif light.type in {'POINT', 'SPOT'}:
+            values = {"shadow_soft_size": light.shadow_soft_size}
+        else:
+            values = {}
+        sizes[_key(light)] = (light, values)
+    active = [item.light for item in settings.active_lights if item.light is not None]
+    return objects, sizes, active
+
+
+def _rollback_shadow_preparation(settings, snapshot):
+    objects, sizes, active = snapshot
+    copies = {}
+    errors = []
+    for obj, original in objects:
+        if obj.data != original:
+            copy = obj.data
+            try:
+                obj.data = original
+                copies[_key(copy)] = copy
+            except _EXPECTED_ERRORS as exc:
+                errors.append(f"{obj.name}: could not restore original light data ({exc})")
+    for light, values in sizes.values():
+        if not _editable(light):
+            continue
+        try:
+            _set_light_shadow_values(light, values)
+        except _EXPECTED_ERRORS as exc:
+            errors.append(f"{light.name}: could not restore source size ({exc})")
+    _replace_active(settings, active)
+    for light in copies.values():
+        if not light.users:
+            try:
+                bpy.data.lights.remove(light)
+            except _EXPECTED_ERRORS as exc:
+                errors.append(f"Unused light copy could not be removed ({exc})")
+    return errors
+
+
 class ALSC_OT_shadows(Operator):
     bl_idname = "alsc.apply_shadows"
     bl_label = "Apply Shadow Settings"
@@ -575,47 +674,53 @@ class ALSC_OT_shadows(Operator):
     def execute(self, context):
         scene, settings = context.scene, _settings(context.scene)
         every = self.every_scene_light or settings.shadow_scope == 'ALL'
-        lights, skipped, isolated, errors = _prepare_lights(scene, settings, size_only=False, every_scene_light=every)
-        values = {
-            "shadow_filter_radius": settings.shadow_filter,
-            "shadow_maximum_resolution": settings.shadow_resolution,
-            "use_absolute_resolution": settings.absolute_resolution,
-            "shadow_jitter_overblur": settings.shadow_overblur,
-            "use_shadow_jitter": settings.shadow_jitter,
-        }
-        if settings.shadow_casting != 'KEEP':
-            values["use_shadow"] = settings.shadow_casting == 'ON'
-        applied = 0
-        suns = 0
-        for light in lights:
-            light_values = dict(values)
-            # Absolute Resolution Limit belongs to local lights in Blender5.2.
-            # Sun still receives every applicable shadow control.
-            if light.type == 'SUN':
-                light_values.pop("use_absolute_resolution")
-                suns += 1
-            # Save values first so an unexpected property failure does not leave
-            # only part of the requested preset on this light.
-            previous = {}
+        _apply_scene_shadows(scene, settings, every=every)
+        self.report({'WARNING'} if settings.last_errors else {'INFO'}, settings.last_status)
+        return {'FINISHED'}
+
+
+class ALSC_OT_enable_eevee_shadows(Operator):
+    bl_idname = "alsc.enable_eevee_shadows"
+    bl_label = "Enable Eevee Shadows"
+    bl_description = "Switch this scene to Eevee, enable scene shadows and shadow casting for every light type in Target Lights, and apply current shadow detail and jitter settings; other render settings are unchanged"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        scene, settings = context.scene, _settings(context.scene)
+        previous_scene = (scene.render.engine, scene.eevee.use_shadows)
+        snapshot = _shadow_preparation_snapshot(scene, settings)
+        prepared = _prepare_lights(scene, settings, size_only=False)
+        if not prepared[0]:
+            _set_status(settings, "No editable light targets; Eevee settings unchanged.", prepared[1], prepared[3])
+            self.report({'WARNING'}, settings.last_status)
+            return {'FINISHED'}
+        try:
+            _set_eevee_shadow_scene(scene, 'BLENDER_EEVEE', True)
+        except _EXPECTED_ERRORS as exc:
+            errors = list(prepared[3]) + [f"Eevee scene settings could not be enabled ({exc})"]
+            rollback_errors = []
             try:
-                previous = {name: getattr(light, name) for name in light_values}
-                for name, value in light_values.items():
-                    setattr(light, name, value)
-                applied += 1
+                _set_eevee_shadow_scene(scene, *previous_scene)
+            except _EXPECTED_ERRORS as rollback_exc:
+                rollback_errors.append(f"Previous scene settings could not be restored ({rollback_exc})")
+            rollback_errors.extend(_rollback_shadow_preparation(settings, snapshot))
+            errors.extend(rollback_errors)
+            _set_status(settings, "Eevee shadows could not be enabled; see operation details.", prepared[1], errors)
+            self.report({'WARNING'}, settings.last_status)
+            # Exceptional rollback failures remain undoable instead of being
+            # hidden behind a cancelled operator with no Undo entry.
+            return {'FINISHED'} if rollback_errors else {'CANCELLED'}
+        applied = _apply_scene_shadows(scene, settings, casting='ON', prepared=prepared)
+        if not applied:
+            errors = settings.last_errors.splitlines()
+            try:
+                _set_eevee_shadow_scene(scene, *previous_scene)
             except _EXPECTED_ERRORS as exc:
-                skipped += 1
-                errors.append(f"{light.name}: shadow update failed ({exc})")
-                for name, value in previous.items():
-                    try:
-                        setattr(light, name, value)
-                    except _EXPECTED_ERRORS as rollback_exc:
-                        errors.append(f"{light.name}: could not restore {name} ({rollback_exc})")
-        suffix = f"; {isolated} shared data isolated" if isolated else ""
-        if suns:
-            suffix += f"; absolute limit applies to local lights only ({suns} sun)"
-        scope_name = "every scene light" if every else "the chosen scope"
-        _set_status(settings, f"Updated {applied} light datablocks in {scope_name}{suffix}.", skipped, errors)
-        self.report({'WARNING'} if errors else {'INFO'}, settings.last_status)
+                errors.append(f"Previous scene settings could not be restored ({exc})")
+            _set_status(settings, "No light shadows were enabled; see operation details.", settings.last_skipped, errors)
+        else:
+            settings.last_status = "Enabled Eevee scene shadows. " + settings.last_status
+        self.report({'WARNING'} if settings.last_errors or not applied else {'INFO'}, settings.last_status)
         return {'FINISHED'}
 
 
@@ -1041,7 +1146,7 @@ class ALSC_UL_collections(UIList):
 
 
 class VIEW3D_PT_alsc_main(Panel):
-    bl_label = "Light Size and Shadow Control"
+    bl_label = "Light Control"
     bl_idname = "VIEW3D_PT_alsc_main"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -1051,29 +1156,35 @@ class VIEW3D_PT_alsc_main(Panel):
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        layout.label(text="Resize sources and tune Eevee shadows.")
         targets = section(layout, "Target Lights", icon='LIGHT', section_id="target_lights")
         if targets is not None:
-            targets.prop(settings, "size_light_types", text="Source Types")
-            targets.prop(settings, "scope", text="Scope")
+            targets.prop(settings, "scope", text="Include")
             if settings.scope == 'COLLECTIONS':
                 row = targets.row()
                 row.template_list("ALSC_UL_collections", "", settings, "collections", settings, "collection_index", rows=3)
                 column = row.column(align=True)
                 column.operator("alsc.collection_add", text="", icon='ADD')
                 column.operator("alsc.collection_remove", text="", icon='REMOVE')
-                targets.label(text="Includes child collections.", icon='INFO')
                 if not any(item.collection is not None for item in settings.collections):
-                    targets.label(text="Choose at least one collection.", icon='ERROR')
+                    targets.label(text="Choose a collection.", icon='ERROR')
             objects = _object_scope(context.scene, settings)
-            sized = sum(obj.data.type in _size_types(settings) for obj in objects)
-            targets.label(text=f"Size targets: {sized}; all types: {len(objects)}")
-            targets.label(text="Changing targets restores source sizes.", icon='INFO')
-            targets.label(text="Size Reduction also resets to 0.")
+            targets.label(text=f"{len(objects)} lights in scope", icon='LIGHT')
+            enable = targets.column()
+            enable.enabled = bool(objects)
+            enable.scale_y = 1.25
+            enable.operator(
+                "alsc.enable_eevee_shadows",
+                text="Enable Eevee Shadows" if context.scene.render.engine == 'BLENDER_EEVEE' else "Use Eevee & Enable Shadows",
+                icon='LIGHT',
+            )
+            targets.operator("alsc.refresh_sizes", text="Refresh Targets", icon='FILE_REFRESH')
+        details_text = f"Details ({settings.last_skipped} skipped)" if settings.last_skipped else "Operation Details"
+        layout.operator("alsc.status_details", text=details_text,
+                        icon='ERROR' if settings.last_skipped or settings.last_errors else 'INFO')
 
 
 class VIEW3D_PT_alsc_sizes(Panel):
-    bl_label = "Light Source Sizes"
+    bl_label = "Source Size"
     bl_idname = "VIEW3D_PT_alsc_sizes"
     bl_parent_id = "VIEW3D_PT_alsc_main"
     bl_space_type = 'VIEW_3D'
@@ -1084,71 +1195,65 @@ class VIEW3D_PT_alsc_sizes(Panel):
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        sizes = section(layout, "Source Size", icon='LIGHT_AREA', section_id="source_size")
+        title = {
+            'AREA': "Area Dimensions", 'POINT': "Point Radius",
+            'SPOT': "Spot Radius", 'ALL3': "Dimensions / Radii",
+        }[settings.size_light_types]
+        icon = {'AREA': 'LIGHT_AREA', 'POINT': 'LIGHT_POINT',
+                'SPOT': 'LIGHT_SPOT', 'ALL3': 'LIGHT'}[settings.size_light_types]
+        sizes = section(layout, title, icon=icon, section_id="source_size")
         if sizes is not None:
+            sizes.prop(settings, "size_light_types")
             sizes.prop(settings, "size_reduction", text="Reduction (Stops)", slider=True)
             percentage = math.exp2(-float(settings.size_reduction)) * 100.0
-            sizes.label(text=f"Requested size: {percentage:.3g}% of baseline")
-            sizes.label(text="1 stop = half; 2 stops = quarter.")
-            if settings.size_light_types == 'AREA':
-                sizes.label(text="Controls area emitter dimensions.")
-            elif settings.size_light_types in {'POINT', 'SPOT'}:
-                sizes.label(text="Controls source radius.")
-                if settings.size_light_types == 'SPOT':
-                    sizes.label(text="Spot cone angle is unchanged.")
-            else:
-                sizes.label(text="Area dimensions and point/spot radii.")
+            sizes.label(text=f"Requested scale: {percentage:.3g}%")
             sizes.prop(settings, "minimum_size")
-            sizes.label(text="Sun angular size is not controlled.", icon='INFO')
-        baseline = section(layout, "Saved Baseline", icon='FILE_BLEND', section_id="saved_baseline")
+        baseline = section(layout, "Saved Sizes", icon='FILE_BLEND', section_id="saved_baseline")
         if baseline is not None:
-            row = baseline.row(align=True)
-            row.operator("alsc.capture_sizes", text="Capture Sizes", icon='IMPORT')
-            row.operator("alsc.restore_sizes", text="Restore", icon='LOOP_BACK')
-            baseline.operator("alsc.refresh_sizes", icon='FILE_REFRESH')
-            baseline.label(text="Captured automatically; saved in this .blend.")
-            baseline.label(text="Recapture after editing source type or shape.")
-        if settings.last_skipped:
-            layout.label(text=f"{settings.last_skipped} skipped; see details.", icon='ERROR')
-        layout.operator("alsc.status_details", text="Last Operation Details", icon='INFO')
+            capture = baseline.column(align=True)
+            capture.enabled = any(obj.data.type in _size_types(settings)
+                                  for obj in _object_scope(context.scene, settings))
+            capture.operator("alsc.capture_sizes", text="Set Baseline", icon='IMPORT')
+            baseline.operator("alsc.restore_sizes", text="Restore Sizes", icon='LOOP_BACK')
 
 
 class VIEW3D_PT_alsc_shadows(Panel):
-    bl_label = "Shadow Settings"
+    bl_label = "Eevee Shadows"
     bl_idname = "VIEW3D_PT_alsc_shadows"
     bl_parent_id = "VIEW3D_PT_alsc_main"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "Helix Tools"
     bl_order = 20
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        shadows = section(layout, "Eevee Shadow Detail", icon='LIGHT', section_id="shadow_detail")
+        shadows = section(layout, "Shadow Detail", icon='LIGHT', section_id="shadow_detail")
         if shadows is not None:
             shadows.prop(settings, "shadow_preset")
-            if settings.shadow_preset == 'CRISP':
-                shadows.label(text="Finer detail can cost memory.", icon='INFO')
-                shadows.label(text="Check for shadow aliasing.")
             shadows.prop(settings, "shadow_filter")
             shadows.prop(settings, "shadow_resolution")
             shadows.prop(settings, "absolute_resolution")
-            shadows.label(text="Absolute limit excludes Sun lights.")
-            shadows.prop(settings, "shadow_overblur")
             shadows.prop(settings, "shadow_jitter")
+            blur = shadows.column()
+            blur.active = settings.shadow_jitter
+            blur.prop(settings, "shadow_overblur")
         apply = section(layout, "Apply Shadows", icon='CHECKMARK', section_id="apply_shadows")
         if apply is not None:
-            apply.prop(settings, "shadow_casting")
-            apply.prop(settings, "shadow_scope")
-            apply.operator("alsc.apply_shadows", icon='LIGHT')
-            apply.label(text="Includes every light type in the target scope.")
+            apply.prop(settings, "shadow_scope", text="Targets")
+            apply.prop(settings, "shadow_casting", text="Casting")
+            every = settings.shadow_scope == 'ALL' or settings.scope == 'ALL'
+            action = apply.column()
+            action.enabled = bool(_object_scope(context.scene, settings, every_scene_light=every))
+            action.operator("alsc.apply_shadows", text="Apply to Scene Lights" if every else "Apply to Collection Lights", icon='CHECKMARK')
             if context.scene.render.engine != 'BLENDER_EEVEE':
-                apply.label(text="Shadow detail settings are used by Eevee.", icon='INFO')
+                apply.label(text="Used by Eevee.", icon='INFO')
 
 
 class VIEW3D_PT_alsc_scene(Panel):
-    bl_label = "Eevee Scene Quality"
+    bl_label = "Render & Startup"
     bl_idname = "VIEW3D_PT_alsc_scene"
     bl_parent_id = "VIEW3D_PT_alsc_main"
     bl_space_type = 'VIEW_3D'
@@ -1160,33 +1265,25 @@ class VIEW3D_PT_alsc_scene(Panel):
     def draw(self, context):
         layout, settings = self.layout, _settings(context.scene)
         setup_layout(layout)
-        quality = section(layout, "Scene Quality Preset", icon='SCENE', section_id="scene_quality")
+        quality = section(layout, "Eevee Render Preset", icon='SCENE', section_id="scene_quality")
         if quality is not None:
-            quality.label(text="Switches this scene to Eevee.")
-            quality.label(text="128 render samples; 4 rays; 12 steps")
-            quality.label(text="2 GB shadows; 1 GB volume probes")
-            quality.label(text="High quality normals; 16x filtering")
-            quality.label(text="GPU compositor; automatic precision")
-            quality.label(text="Automatic viewport pixel size")
+            quality.label(text="128 samples; 4 rays; 12 steps")
+            quality.label(text="2 GB shadows; 1 GB probes")
             quality.prop(settings, "viewport_jitter")
             quality.operator("alsc.eevee_scene_quality", icon='SCENE')
-            quality.operator("alsc.restore_render_settings", icon='LOOP_BACK')
-            quality.label(text="Reversible: Restore above, or Blender Undo.", icon='INFO')
-            quality.label(text="Previous values are saved in this .blend.")
-        startup = section(layout, "Optional Blender Startup", icon='FILE_BLEND', section_id="startup")
+            quality.operator("alsc.restore_render_settings", text="Restore Render Settings", icon='LOOP_BACK')
+            quality.label(text="Reversible: Restore or Undo.", icon='INFO')
+        startup = section(layout, "Blender Startup", icon='FILE_BLEND', section_id="startup", default_closed=True)
         if startup is not None:
-            startup.label(text="Save this file's scenes, objects and layout.")
-            startup.label(text="Existing startup is always backed up first.")
-            startup.operator("alsc.save_suggested_startup", icon='FILE_TICK')
-            startup.operator("alsc.restore_previous_startup", icon='LOOP_BACK')
-            startup.label(text="Startup restore is separate from scene Undo.")
-            startup.operator("alsc.status_details", text="Startup and Operation Details", icon='INFO')
+            startup.label(text="Saves scene + layout.")
+            startup.operator("alsc.save_suggested_startup", text="Back Up & Save Startup", icon='FILE_TICK')
+            startup.operator("alsc.restore_previous_startup", text="Restore Startup", icon='LOOP_BACK')
 
 
 CLASSES = (
     ALSC_CollectionItem, ALSC_ActiveLight, ALSC_Settings,
     ALSC_OT_collection_add, ALSC_OT_collection_remove, ALSC_OT_capture,
-    ALSC_OT_restore, ALSC_OT_apply_sizes, ALSC_OT_shadows,
+    ALSC_OT_restore, ALSC_OT_apply_sizes, ALSC_OT_shadows, ALSC_OT_enable_eevee_shadows,
     ALSC_OT_scene_quality, ALSC_OT_restore_render, ALSC_OT_save_startup,
     ALSC_OT_restore_startup, ALSC_OT_details, ALSC_UL_collections,
     VIEW3D_PT_alsc_main, VIEW3D_PT_alsc_sizes, VIEW3D_PT_alsc_shadows,

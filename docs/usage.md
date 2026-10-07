@@ -124,36 +124,54 @@ See the [quickstart](../addons/hair_contact_culler/README.md) and
 
 ## Light Size and Shadow Control
 
-Choose Area, Point, Spot, or all three source types and a scene/collection scope.
-Child collections are included. One stop of reduction halves dimensions/radius;
+Open **Helix Tools → Light Control**. In **Target Lights**, choose the entire scene
+or specific collections, then click **Enable Eevee Shadows**. This enables the
+scene's shadow switch and shadow casting on every included light type, using the
+current shadow-detail values. It works immediately with the defaults; no casting
+or preset dropdown changes are needed. On another renderer the button reads
+**Use Eevee & Enable Shadows** and also switches the scene to Eevee. It leaves
+other render-quality settings alone and supports Blender Undo. Child collections
+are included. Lights outside the target scope keep their shadow settings.
+
+In **Source Size**, choose Area, Point, Spot, or all three source types.
+This filter affects resizing only. One stop of reduction halves dimensions/radius;
 two stops produce one quarter. Scaling always uses a saved baseline, so repeated
 updates do not compound. Rectangle/ellipse aspect ratios and a positive size floor
 are preserved. Sun angular size is excluded; Spot cone settings remain unchanged.
 
-Baselines are captured automatically and saved in the `.blend`. **Capture Sizes**
-sets a new baseline from the current source sizes; **Restore** returns to the saved
-sizes. Recapture after changing a light's type or area shape. Changing the target
-scope restores previously controlled sizes and resets reduction. **Refresh Scope**
+Baselines are captured automatically and saved in the `.blend`. **Set Baseline**
+sets a new baseline from the current source sizes; **Restore Sizes** returns to the
+saved sizes. Recapture after changing a light's type or area shape. Changing the target
+scope restores previously controlled sizes and resets reduction. **Refresh Targets**
 handles objects moved between collections.
 
-Shadow settings apply to every light type in the chosen shadow scope. The default
-preserves each light's existing casting choice. **Detailed** and **Crisp Detail**
-are starting presets, not guaranteed render-quality improvements. Absolute shadow
-resolution is unavailable for Sun lights.
+Open **Eevee Shadows** for optional tuning. **Target Scope** follows Target Lights;
+**Entire Scene** overrides the collection filter for the manual apply action.
+The manual **Casting → Keep Existing** default preserves each light's casting
+choice; the quick enable button explicitly turns casting on for its targets.
+**Extra Blur** is available when **Shadow Jitter** is on. **Detailed** and
+**Crisp Detail** are starting presets, not guaranteed render-quality improvements. Absolute shadow
+resolution is unavailable for Sun lights. **Fixed Distance** anchors the local-light
+detail limit one Blender unit from the light, instead of adapting to screen coverage.
 
 **Switch to Suggested Render Preset** switches the current scene to Eevee and
-applies the values shown in its panel. This is reversible: **Restore Previous
-Render Settings** returns the affected settings to their values before the first
+applies 128 render samples, 64 viewport samples, 4 shadow rays, 12 shadow steps,
+2 GB of shadow memory, and 1 GB of volume-probe memory. It also enables shadows,
+high-quality normals, 16× anisotropic filtering, GPU compositing with automatic
+precision, and automatic viewport pixel size. **Viewport Jitter** controls jitter
+during viewport interaction. This is reversible: **Restore Render Settings**
+returns the affected settings to their values before the first
 switch. Reapplying the preset keeps that original snapshot. The snapshot is saved
 in the `.blend`; unrelated scene settings are left alone. The suggested values
 are a starting point for iteration and can increase memory use and render time.
 
-**Save Suggested Preset as Startup** is a separate, confirmed action. It applies
-the preset and saves the entire current scene and layout as Blender's startup
+**Blender Startup → Back Up & Save Startup** is a separate, confirmed action. Its
+section is collapsed by default. It applies the preset and saves the entire
+current scene and layout as Blender's startup
 file, including its objects. Prepare the scene you want for new projects first.
 An existing `startup.blend` is copied to a uniquely named
 `startup.helix-tools-backup-*.blend` beside it and verified before replacement.
-The result shows the backup path. **Restore Previous Startup** restores that file
+The result shows the backup path. **Restore Startup** restores that file
 for future startups while keeping the backup. If no custom startup existed, it
 returns to Blender's factory startup instead. This does not reload or change the
 currently open scene.
@@ -169,7 +187,7 @@ Scoped operations isolate shared light datablocks where an excluded object would
 otherwise change. Linked/read-only targets are skipped with details. A light
 object itself shared across scenes remains the same object, so changes to that
 included object can affect all its scenes. Disabling the add-on does not restore
-sizes automatically; use **Restore** when you want the original appearance.
+sizes automatically; use **Restore Sizes** when you want the original appearance.
 
 ## Cloth Cache Manager
 

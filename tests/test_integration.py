@@ -36,6 +36,7 @@ PUBLIC_OPERATORS = (
     "alsc.restore_sizes",
     "alsc.refresh_sizes",
     "alsc.apply_shadows",
+    "alsc.enable_eevee_shadows",
     "alsc.eevee_scene_quality",
     "alsc.status_details",
     "helix.hair_cull_build",

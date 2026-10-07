@@ -103,7 +103,7 @@ JSON test report. A local passing run does not imply that hosted CI has run.
 
 `python scripts/build_releases.py` writes six standalone versioned ZIPs and one
 complete-suite ZIP, `SHA256SUMS`, and `releases.json` to `dist/`. The initial suite
-archive is `helix_tools-1.0.0.zip`. Every archive contains its manifest and package
+archive uses `helix_tools-<version>.zip`. Every archive contains its manifest and package
 entry point at the root, as Blender's extension installer expects. The suite
 archive includes the wrapper from `suite/helix_tools/` and all six tool packages;
 it installs directly without unpacking or installing nested ZIPs. Fixed archive

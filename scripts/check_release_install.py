@@ -130,6 +130,13 @@ def exercise_tools(component_prefix):
     assert (bpy.context.object.location - target.location).length < 1e-5
     assert bpy.ops.object.camera_cull_timeline.get_rna_type()
     assert bpy.ops.alsc.refresh_sizes.get_rna_type()
+    light = bpy.data.lights.new("Archive Shadow Light", 'AREA')
+    light.use_shadow = False
+    scene.collection.objects.link(bpy.data.objects.new("Archive Shadow Light", light))
+    scene.eevee.use_shadows = False
+    assert bpy.ops.alsc.enable_eevee_shadows() == {"FINISHED"}
+    assert scene.render.engine == 'BLENDER_EEVEE' and scene.eevee.use_shadows
+    assert light.use_shadow and light.use_shadow_jitter
     for name in ("hair_cull_build", "hair_cull_remove", "hair_cull_validate",
                  "hair_cull_add_items", "hair_cull_remove_item", "hair_cull_help"):
         assert getattr(bpy.ops.helix, name).get_rna_type()

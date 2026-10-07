@@ -287,6 +287,176 @@ class LightingTests(unittest.TestCase):
             self.assertNear(obj.data.shadow_filter_radius, 1)
         self.assertNear(outside.data.shadow_filter_radius, 3)
 
+    def test_quick_shadow_defaults_enable_scene_and_all_light_types(self):
+        self.scene.render.engine = 'CYCLES'
+        self.scene.eevee.use_shadows = False
+        self.scene.eevee.taa_render_samples = 37
+        self.scene.eevee.shadow_pool_size = '512'
+        previous_render = addon._render_current(self.scene)
+        lights = [self.light(kind, kind) for kind in ('AREA', 'POINT', 'SPOT', 'SUN')]
+        for obj in lights:
+            obj.data.use_shadow = False
+            obj.data.energy = 321
+        self.assertEqual(self.settings.size_light_types, 'AREA')
+        self.assertEqual(self.settings.shadow_casting, 'KEEP')
+        self.assertEqual(bpy.ops.alsc.enable_eevee_shadows(), {'FINISHED'})
+        self.assertEqual(self.scene.render.engine, 'BLENDER_EEVEE')
+        self.assertTrue(self.scene.eevee.use_shadows)
+        for obj in lights:
+            self.assertTrue(obj.data.use_shadow)
+            self.assertTrue(obj.data.use_shadow_jitter)
+            self.assertNear(obj.data.shadow_filter_radius, 1)
+            self.assertNear(obj.data.shadow_maximum_resolution, 0.001)
+            self.assertNear(obj.data.energy, 321)
+        self.assertNear(lights[0].data.size, 2)
+        self.assertNear(lights[0].data.size_y, 4)
+        for obj in lights[1:3]:
+            self.assertNear(obj.data.shadow_soft_size, 2)
+        after_render = addon._render_current(self.scene)
+        for key, value in previous_render.items():
+            if key not in {"render.engine", "eevee.use_shadows"}:
+                self.assertEqual(after_render[key], value, key)
+        self.assertNotIn(addon.RENDER_BASELINE_KEY, self.scene)
+        self.assertEqual(self.settings.shadow_casting, 'KEEP')
+        self.assertIn('UNDO', addon.ALSC_OT_enable_eevee_shadows.bl_options)
+
+    def test_quick_shadow_scope_overrides_manual_all_without_changing_settings(self):
+        included = self.light("Included")
+        sun = self.light("Nested Sun", 'SUN', collection=self.nested)
+        outside = self.light("Excluded", collection=self.excluded)
+        self.choose_collection()
+        self.settings.shadow_scope = 'ALL'
+        self.settings.shadow_casting = 'OFF'
+        self.settings.shadow_filter = 0.8
+        self.settings.shadow_resolution = 0.002
+        self.settings.absolute_resolution = True
+        self.settings.shadow_overblur = 7
+        self.settings.shadow_jitter = False
+        for obj in (included, sun, outside):
+            obj.data.use_shadow = False
+            obj.data.shadow_filter_radius = 3
+        self.assertEqual(bpy.ops.alsc.enable_eevee_shadows(), {'FINISHED'})
+        for obj in (included, sun):
+            self.assertTrue(obj.data.use_shadow)
+            self.assertFalse(obj.data.use_shadow_jitter)
+            self.assertNear(obj.data.shadow_filter_radius, 0.8)
+            self.assertNear(obj.data.shadow_maximum_resolution, 0.002)
+            self.assertNear(obj.data.shadow_jitter_overblur, 7)
+        self.assertTrue(included.data.use_absolute_resolution)
+        self.assertFalse(outside.data.use_shadow)
+        self.assertNear(outside.data.shadow_filter_radius, 3)
+        self.assertEqual(self.settings.shadow_scope, 'ALL')
+        self.assertEqual(self.settings.shadow_casting, 'OFF')
+        # The existing advanced action still follows its explicit ALL/OFF.
+        bpy.ops.alsc.apply_shadows()
+        self.assertTrue(all(not obj.data.use_shadow for obj in (included, sun, outside)))
+        self.assertNear(outside.data.shadow_filter_radius, 0.8)
+
+    def test_quick_shadow_shared_data_isolates_excluded_alias(self):
+        inside = self.light("Inside", 'POINT', x=6)
+        nested = self.light("Nested", collection=self.nested, data=inside.data)
+        outside = self.light("Outside", collection=self.excluded, data=inside.data)
+        inside.data.use_shadow = False
+        inside.data.shadow_filter_radius = 3
+        self.choose_collection()
+        bpy.ops.alsc.enable_eevee_shadows()
+        self.assertEqual(inside.data, nested.data)
+        self.assertNotEqual(inside.data, outside.data)
+        self.assertTrue(inside.data.use_shadow)
+        self.assertFalse(outside.data.use_shadow)
+        self.assertNear(inside.data.shadow_filter_radius, 1)
+        self.assertNear(outside.data.shadow_filter_radius, 3)
+        self.assertNear(inside.data.shadow_soft_size, 6)
+        self.assertNear(outside.data.shadow_soft_size, 6)
+
+    def test_quick_shadow_empty_scope_does_not_switch_engine_or_enable_scene(self):
+        self.light("Outside", collection=self.excluded)
+        self.choose_collection()
+        self.settings.shadow_scope = 'ALL'
+        self.scene.render.engine = 'CYCLES'
+        self.scene.eevee.use_shadows = False
+        with mock.patch.object(addon, '_set_eevee_shadow_scene') as change_scene:
+            self.assertEqual(bpy.ops.alsc.enable_eevee_shadows(), {'FINISHED'})
+            change_scene.assert_not_called()
+        self.assertEqual(self.scene.render.engine, 'CYCLES')
+        self.assertFalse(self.scene.eevee.use_shadows)
+
+    def test_quick_shadow_read_only_targets_do_not_change_scene(self):
+        with tempfile.TemporaryDirectory(prefix="helix-quick-linked-") as temp:
+            area = self.light("Read-only Area")
+            area.data.use_shadow = False
+            fixture = str(Path(temp) / "linked.blend")
+            bpy.data.libraries.write(fixture, {area})
+            bpy.data.objects.remove(area, do_unlink=True)
+            with bpy.data.libraries.load(fixture, link=True) as (_, result):
+                result.objects = ["Read-only Area"]
+            linked = result.objects[0]
+            self.included.objects.link(linked)
+            self.scene.render.engine = 'CYCLES'
+            self.scene.eevee.use_shadows = False
+            with mock.patch.object(addon, '_set_eevee_shadow_scene') as change_scene:
+                self.assertEqual(bpy.ops.alsc.enable_eevee_shadows(), {'FINISHED'})
+                change_scene.assert_not_called()
+            self.assertFalse(linked.data.use_shadow)
+            self.assertEqual(self.scene.render.engine, 'CYCLES')
+            self.assertFalse(self.scene.eevee.use_shadows)
+            self.assertGreaterEqual(self.settings.last_skipped, 1)
+            self.assertIn("linked or read-only light", self.settings.last_errors)
+
+    def test_quick_shadow_global_failure_restores_isolation_and_scaled_source(self):
+        area = self.light("Scaled", x=6, y=12)
+        self.choose_collection()
+        self.settings.size_reduction = 2
+        original = area.data
+        original.use_shadow = False
+        outside = self.light("New alias", collection=self.excluded, data=original)
+        self.scene.render.engine = 'CYCLES'
+        self.scene.eevee.use_shadows = False
+        initial_count = len(bpy.data.lights)
+        change_scene = addon._set_eevee_shadow_scene
+        attempts = []
+
+        def fail_once(scene, engine, enabled):
+            attempts.append(engine)
+            if len(attempts) == 1:
+                scene.render.engine = engine
+                raise ValueError("simulated scene shadow failure")
+            change_scene(scene, engine, enabled)
+
+        with mock.patch.object(addon, '_set_eevee_shadow_scene', side_effect=fail_once):
+            result = addon.ALSC_OT_enable_eevee_shadows.execute(mock.Mock(), bpy.context)
+        self.assertEqual(result, {'CANCELLED'})
+        self.assertEqual(self.scene.render.engine, 'CYCLES')
+        self.assertFalse(self.scene.eevee.use_shadows)
+        self.assertEqual(area.data, original)
+        self.assertEqual(outside.data, original)
+        self.assertNear(original.size, 1.5)
+        self.assertNear(original.size_y, 3)
+        self.assertFalse(original.use_shadow)
+        self.assertEqual(len(bpy.data.lights), initial_count)
+        self.assertEqual([item.light for item in self.settings.active_lights], [original])
+        self.assertIn("simulated scene shadow failure", self.settings.last_errors)
+
+    def test_quick_shadow_per_light_failure_restores_scene_and_light_values(self):
+        area = self.light("Area")
+        area.data.use_shadow = False
+        area.data.shadow_filter_radius = 3
+        self.scene.render.engine = 'CYCLES'
+        self.scene.eevee.use_shadows = False
+
+        def failed_light(light, values):
+            light.shadow_filter_radius = 0.8
+            light.use_shadow = True
+            raise ValueError("simulated light update failure")
+
+        with mock.patch.object(addon, '_set_light_shadow_values', side_effect=failed_light):
+            self.assertEqual(bpy.ops.alsc.enable_eevee_shadows(), {'FINISHED'})
+        self.assertFalse(area.data.use_shadow)
+        self.assertNear(area.data.shadow_filter_radius, 3)
+        self.assertEqual(self.scene.render.engine, 'CYCLES')
+        self.assertFalse(self.scene.eevee.use_shadows)
+        self.assertIn("simulated light update failure", self.settings.last_errors)
+
     def test_save_reload_and_reenable_preserve_baselines_without_reapplying(self):
         self.light("Area")
         self.light("Point", 'POINT')

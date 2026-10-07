@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "helix_tools"
-version = "1.0.0"
+version = "1.0.1"
 name = "Helix Tools"
 tagline = "Install all six Helix Tools add-ons together"
 maintainer = "Helices3D"

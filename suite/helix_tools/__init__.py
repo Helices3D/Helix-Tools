@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Helix Tools",
     "author": "Helices3D",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Install all six Helix Tools add-ons together",

@@ -315,9 +315,12 @@ class SidebarDrawTests(unittest.TestCase):
                         self.assertTrue(identifier.startswith(f"helix_tools.{package}."))
                         self.assertNotIn(identifier, owners, "Native section IDs must not collide")
                         owners[identifier] = package
-                        expected_closed = package == "hair_contact_culler" and titles[identifier] in {
-                            "Advanced trim settings", "Maintenance + restore",
-                        }
+                        expected_closed = (
+                            package == "hair_contact_culler" and titles[identifier] in {
+                                "Advanced trim settings", "Maintenance + restore",
+                            }
+                            or package == "area_light_shadow_control" and identifier.endswith(".startup")
+                        )
                         self.assertEqual(default_closed, expected_closed)
                         self.assertEqual(bool(trace.calls[identifier]), not expected_closed)
         self.assertEqual(set(owners.values()), set(MODULE_NAMES))

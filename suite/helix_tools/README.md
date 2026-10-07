@@ -2,7 +2,7 @@
 
 An optional single extension containing all six current Helix Tools add-ons for **Blender 5.2.2 LTS**. Their panels appear in **3D View → Sidebar → Helix Tools**.
 
-Disable the standalone Helix Tools add-ons first. Install `helix_tools-1.0.0.zip` through **Preferences → Get Extensions → Install from Disk**, then enable **Helix Tools**. All six tools enable together. The standalone downloads remain available if you prefer to install tools separately.
+Disable the standalone Helix Tools add-ons first. Install `helix_tools.zip` through **Preferences → Get Extensions → Install from Disk**, then enable **Helix Tools**. All six tools enable together. The standalone downloads remain available if you prefer to install tools separately.
 
 The suite reuses the standalone implementations and their existing operator IDs and saved scene settings. To switch back, disable the suite before enabling standalones.
 
