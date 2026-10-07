@@ -1,6 +1,6 @@
 # Hair Contact Culler workflow
 
-Version **0.2.1**, for **Blender 5.2.2 LTS**. Start with the shorter
+For **Blender 5.2.2 LTS**. Start with the shorter
 [README quickstart](README.md#quickstart), then use this guide while checking
 your own hair and garment fit. The panel's **Quick Guide** also gives a short
 reminder without leaving Blender.
@@ -42,8 +42,8 @@ list or automatically add garments.
   **Add Selected Garments**, then **Rebuild Hair Trim**. Already-listed
   garments are not duplicated.
 - **Remove:** click the **X** on a garment's row, then rebuild.
-- **Temporarily ignore:** turn that garment's **Trim in view** or **Trim in
-  render** switch off. This does not need a rebuild.
+- **Temporarily ignore:** turn that garment's **Viewport** or **Render** trim
+  switch off. This does not need a rebuild.
 
 Adding or removing garments displays the original until you rebuild. Keep
 at least one garment in a working setup. To start a new selection from
@@ -52,7 +52,7 @@ build again.
 
 ## 3. Compare the result and verify the roots
 
-In **Compare + preview**, choose **Full**. Turn **Show Original** on to see
+In **Viewport Preview**, choose **Full**. Turn **Show Original** on to see
 the complete authored hair in the viewport; turn it off to return to the trimmed result.
 Show Original preserves both the source and the saved setup. Rendering
 continues to use the trimmed result at Full strand detail.
@@ -67,7 +67,7 @@ and rotate around the garment edge. Confirm:
 **Auto** decides the root separately for each strand. It prefers the endpoint
 nearer the hair's assigned attachment surface; otherwise it prefers the
 thicker endpoint. If neither distinguishes the endpoints, it uses the first
-stored point. Expand **Advanced trim settings** to see the root summary from
+stored point. Expand **Advanced** to see the root summary from
 the last build and how many decisions used each method.
 
 Auto is a starting point, not a guarantee that every authored strand has
@@ -93,9 +93,9 @@ modes on the trimmed result.
 
 ## 5. Control garment visibility and rendering
 
-Each listed garment has independent **Trim in view** and **Trim in render**
-switches. Enable Trim in view to use that garment's contacts in the viewport;
-enable Trim in render to use them when rendering. These switches control the
+Each listed garment has independent **Viewport** and **Render** trim
+switches. Enable Viewport to use that garment's contacts in the viewport;
+enable Render to use them when rendering. These switches control the
 hair trim. Use Blender's normal object and collection visibility controls
 to show or hide the garment itself.
 
@@ -121,20 +121,20 @@ or radii, root direction, garment list, or **Extra clearance**. The status
 also tells you when a setup needs a rebuild. A stale or unsupported setup
 shows the intact source, including when Hide is selected.
 
-Extra clearance is in **Advanced trim settings**. Leave it at its default
+Extra clearance is in **Advanced**. Leave it at its default
 for the first check. Increasing it causes contact to be detected slightly
 earlier; rebuild and inspect the boundary after a change. Its distance uses world-space
 Blender units. The default `0.00002` is 0.02 mm when one Blender unit represents
 one meter.
 
-**Check Saved Inputs** in **Maintenance + restore** checks whether saved
+**Check Saved Inputs** in **Maintenance** checks whether saved
 inputs and references still match. It does not calculate fresh physical
 clearance for a changed pose. Use Rebuild Hair Trim after changing the physical fit.
 
 ## 7. Restore, save, or upgrade
 
 Use **Show Original** for a temporary viewport comparison. Use **Remove
-Setup** in **Maintenance + restore** to remove the owned modifier, cached attributes,
+Setup** in **Maintenance** to remove the owned modifier, cached attributes,
 and settings and restore the authored groom. Build, rebuild, preview changes,
 and removal support Blender Undo/Redo; use **Edit → Undo / Redo** while
 checking the result.

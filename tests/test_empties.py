@@ -34,6 +34,7 @@ class SmartEmptyTests(unittest.TestCase):
         for name in (
             "empty_size", "display_type", "name_suffix", "show_name", "show_in_front",
             "use_local_orientation", "bone_point", "rig", "list_scope",
+            "anchor_index",
         ):
             settings.property_unset(name)
         self.scene.transform_orientation_slots[0].type = 'GLOBAL'
@@ -369,6 +370,80 @@ class SmartEmptyTests(unittest.TestCase):
         self.assertEqual(bpy.context.mode, 'OBJECT')
         self.assertEqual(bpy.context.active_object, anchor)
         self.assertFalse(anchor.hide_get())
+
+    def filtered_anchors(self, query="", *, inverted=False, alphabetical=False):
+        # Blender 5.2.2's native list accepts FILTER_ITEM directly and gives
+        # NEVER_SHOW precedence. Inversion is applied by filter_items itself.
+        ui_list = SimpleNamespace(
+            filter_name=query, use_filter_invert=inverted,
+            use_filter_sort_alpha=alphabetical,
+            bitflag_filter_item=1 << 30, bitflag_item_never_show=1 << 16,
+        )
+        before = (
+            self.scene.helix_smart_empty_settings.anchor_index,
+            bpy.context.active_object, tuple(bpy.context.selected_objects),
+            tuple((obj, obj.hide_viewport, obj.hide_render, obj.hide_get(),
+                   tuple(tuple(row) for row in obj.matrix_world)) for obj in self.scene.objects),
+        )
+        flags, order = smart_empty.SMART_EMPTY_UL_anchors.filter_items(
+            ui_list, bpy.context, self.scene, "objects",
+        )
+        self.assertEqual(len(flags), len(self.scene.objects))
+        visible = [obj for obj, flag in zip(self.scene.objects, flags)
+                   if not flag & ui_list.bitflag_item_never_show and flag & ui_list.bitflag_filter_item]
+        if order:
+            self.assertEqual(sorted(order), list(range(len(self.scene.objects))))
+            positions = {obj: index for index, obj in enumerate(self.scene.objects)}
+            visible.sort(key=lambda obj: order[positions[obj]])
+        after = (
+            self.scene.helix_smart_empty_settings.anchor_index,
+            bpy.context.active_object, tuple(bpy.context.selected_objects),
+            tuple((obj, obj.hide_viewport, obj.hide_render, obj.hide_get(),
+                   tuple(tuple(row) for row in obj.matrix_world)) for obj in self.scene.objects),
+        )
+        self.assertEqual(after, before, "Filtering must not change selection, transforms, or visibility")
+        return visible
+
+    def test_anchor_browser_search_inversion_and_scope_never_expose_untracked_objects(self):
+        first_rig = self.make_rig("First Rig")
+        zeta = self.add_bone_anchor(first_rig)
+        zeta.name = "Zeta Anchor"
+        alpha = self.add_bone_anchor(first_rig)
+        alpha.name = "alpha Anchor"
+        second_rig = self.make_rig("Second Rig")
+        other = self.add_bone_anchor(second_rig)
+        other.name = "Zeta Other Rig"
+        untracked = self.make_object("Zeta Untracked Empty")
+        settings = self.scene.helix_smart_empty_settings
+        settings.rig, settings.list_scope = first_rig, "RIG"
+        self.assertEqual(self.filtered_anchors("  zETA  "), [zeta])
+        self.assertEqual(self.filtered_anchors("zeta", inverted=True), [alpha])
+        self.assertEqual(set(self.filtered_anchors(inverted=True)), {zeta, alpha})
+        first_rig.name = "Renamed First Rig"
+        self.assertEqual(set(self.filtered_anchors("renamed first rig")), {zeta, alpha})
+        self.assertEqual(set(self.filtered_anchors("JAW")), {zeta, alpha})
+        self.assertEqual(self.filtered_anchors(alphabetical=True), [alpha, zeta])
+        settings.list_scope = "ALL"
+        self.assertEqual(set(self.filtered_anchors("zeta")), {zeta, other})
+        self.assertEqual(self.filtered_anchors("zeta", inverted=True), [alpha])
+        self.assertNotIn(untracked, self.filtered_anchors())
+        settings.list_scope, settings.rig = "RIG", None
+        self.assertFalse(self.filtered_anchors())
+        self.assertFalse(self.filtered_anchors("zeta", inverted=True))
+
+    def test_new_anchor_browser_highlight_follows_creation_without_automatic_selection_on_browse(self):
+        source = self.make_object("Object Source")
+        self.activate(source)
+        self.assertEqual(bpy.ops.object.add_smart_empty_baked(), {"FINISHED"})
+        anchor = bpy.context.active_object
+        settings = self.scene.helix_smart_empty_settings
+        self.assertEqual(self.scene.objects[settings.anchor_index], anchor)
+        self.assertEqual(self.filtered_anchors("object source"), [anchor])
+        selected, active = tuple(bpy.context.selected_objects), bpy.context.active_object
+        settings.anchor_index = tuple(self.scene.objects).index(source)
+        self.assertEqual(tuple(bpy.context.selected_objects), selected)
+        self.assertEqual(bpy.context.active_object, active)
+        self.assertEqual(self.filtered_anchors("object source"), [anchor])
 
     def test_registration_cycles_and_legacy_collision_are_safe(self):
         for _ in range(3):

@@ -13,6 +13,14 @@ root extension. Run `python scripts/sync_updaters.py` after editing the shared
 source to refresh the tracked `_updates/` copies in each add-on and the suite.
 The builder rejects copies that differ from the shared source.
 
+Keep sidebar controls consistent with Light Control: label/value rows without
+animation decorators, a prominent primary action near its inputs, independent
+collapsible sections, and optional details closed initially. Use concise visible
+labels with full hover descriptions. Explicit toggle buttons and expanded enum
+rows need `use_property_split = False` so they fill the row. Check populated and
+empty states at both normal and narrow sidebar widths in native Blender;
+headless draw traces cannot catch clipped text or blank enum buttons.
+
 ## Run the checks
 
 Use Python 3.13 and Blender Foundation's exact `bpy==5.2.2` package:

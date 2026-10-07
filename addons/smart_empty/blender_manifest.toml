@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "smart_empty"
-version = "2.1.0"
+version = "2.2.0"
 name = "Smart Empty"
 tagline = "Create and manage independent bone and object helpers"
 maintainer = "Helices3D"

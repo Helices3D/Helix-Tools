@@ -7,7 +7,7 @@ Adapted from Cloth Cache Manager 1.1, by Gemini and Helices3D.
 bl_info = {
     "name": "Cloth Cache Manager",
     "author": "Gemini + Executive Produced by Helices3D",
-    "version": (1, 3, 0),
+    "version": (1, 4, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Manage cloth-cage caches for reliable timeline navigation",
@@ -45,6 +45,17 @@ def _cache_label(obj, modifier):
     return f"{obj.name} / {modifier.name}"
 
 
+def _object_skip_reason(context, obj):
+    """Use the same editability and view-layer scope for batch controls."""
+    if obj.name not in context.view_layer.objects:
+        return "excluded from the current view layer"
+    if not obj.is_editable:
+        return "linked or non-editable object"
+    if obj.data is not None and not obj.data.is_editable:
+        return "linked or non-editable mesh data"
+    return None
+
+
 def cached_frame_count(cache):
     """Read Blender's current cache summary; an unknown summary stays unknown.
 
@@ -70,20 +81,13 @@ def cloth_targets(context):
     if getattr(context, "scene", None) is None or getattr(context, "view_layer", None) is None:
         raise ValueError("A scene and active view layer are required")
     targets, skipped = [], []
-    layer_objects = context.view_layer.objects
     for obj in context.scene.objects:
         if not getattr(obj, PROPERTY_NAME, False):
             continue
         modifiers = [modifier for modifier in obj.modifiers if modifier.type == "CLOTH"]
         if not modifiers:
             continue
-        reason = None
-        if obj.name not in layer_objects:
-            reason = "excluded from the current view layer"
-        elif not obj.is_editable:
-            reason = "linked or non-editable object"
-        elif obj.data is not None and not obj.data.is_editable:
-            reason = "linked or non-editable mesh data"
+        reason = _object_skip_reason(context, obj)
         for modifier in modifiers:
             if reason:
                 skipped.append(f"{_cache_label(obj, modifier)}: skipped ({reason})")
@@ -207,6 +211,10 @@ class CLOTH_OT_BakeFromCache(bpy.types.Operator):
 
     bl_idname = "cloth_manager.bake_from_cache"
     bl_label = "Current Cache to Bake"
+    bl_description = (
+        "Keep the existing simulated frames as bakes for every checked object's Cloth modifiers; "
+        "play from each cache's start frame first. Missing frames are not simulated"
+    )
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -236,6 +244,43 @@ class CLOTH_OT_ResetBakes(bpy.types.Operator):
         return _report_batch(self, context, "RESET")
 
 
+class CLOTH_OT_SetIncluded(bpy.types.Operator):
+    bl_idname = "cloth_manager.set_included"
+    bl_label = "Set Cloth Inclusion"
+    bl_options = {"REGISTER", "UNDO"}
+
+    include: BoolProperty(default=True, options={"SKIP_SAVE"})
+
+    @classmethod
+    def description(cls, context, properties):
+        action = "Check" if properties.include else "Uncheck"
+        return (
+            f"{action} every editable cloth object in the current view layer for batch cache actions; "
+            "Blender object selection and physics settings are unchanged"
+        )
+
+    @classmethod
+    def poll(cls, context):
+        return getattr(context, "scene", None) is not None and getattr(context, "view_layer", None) is not None
+
+    def execute(self, context):
+        objects = [obj for obj in context.scene.objects if any(
+            modifier.type == "CLOTH" for modifier in obj.modifiers
+        )]
+        editable = [obj for obj in objects if _object_skip_reason(context, obj) is None]
+        if not editable:
+            self.report({"WARNING"}, "No editable cloth objects in the current view layer")
+            return {"CANCELLED"}
+        changed = 0
+        for obj in editable:
+            if getattr(obj, PROPERTY_NAME) != self.include:
+                setattr(obj, PROPERTY_NAME, self.include)
+                changed += 1
+        action = "Checked" if self.include else "Unchecked"
+        self.report({"INFO"}, f"{action} {len(editable)} cloth objects; {changed} changed")
+        return {"FINISHED"}
+
+
 class VIEW3D_PT_ClothManager(bpy.types.Panel):
     bl_idname = "VIEW3D_PT_ClothManager"
     bl_space_type = "VIEW_3D"
@@ -256,18 +301,26 @@ class VIEW3D_PT_ClothManager(bpy.types.Panel):
 
         operations = section(layout, "Batch Cache Actions", icon="MOD_PHYSICS", section_id="cache_actions")
         if operations is not None:
-            operations.label(text="Checked objects in the current view layer")
-            row = operations.row(align=True)
-            row.enabled = context.mode == "OBJECT"
-            row.operator(CLOTH_OT_BakeFromCache.bl_idname, icon="FILE_TICK")
-            row.operator(CLOTH_OT_ResetBakes.bl_idname, icon="FILE_REFRESH")
-            operations.label(text="Play from simulation start before baking")
-            operations.label(text="Bake before jumping through animation frames")
+            targets, _ = cloth_targets(context)
+            operations.label(text=f"{len(targets)} cloth caches included", icon="MOD_CLOTH")
+            actions = operations.column(align=True)
+            actions.enabled = context.mode == "OBJECT" and bool(targets)
+            bake = actions.column(align=True)
+            bake.scale_y = 1.25
+            bake.operator(CLOTH_OT_BakeFromCache.bl_idname, text="Cache to Bake", icon="FILE_TICK")
+            actions.operator(CLOTH_OT_ResetBakes.bl_idname, icon="FILE_REFRESH")
             if context.mode != "OBJECT":
-                operations.label(text="Switch to Object Mode to manage caches", icon="INFO")
+                operations.label(text="Use Object Mode for cache actions", icon="INFO")
+            elif not targets:
+                has_checked = any(getattr(obj, PROPERTY_NAME, False) for obj in cloth_objects)
+                operations.label(text="Checked objects are unavailable" if has_checked else "Check cloth objects below", icon="INFO")
 
         objects = section(layout, "Cloth Objects", icon="OBJECT_DATAMODE", section_id="cloth_objects")
         if objects is not None:
+            checks = objects.row(align=True)
+            checks.enabled = any(_object_skip_reason(context, obj) is None for obj in cloth_objects)
+            checks.operator(CLOTH_OT_SetIncluded.bl_idname, text="Check All", icon="CHECKBOX_HLT").include = True
+            checks.operator(CLOTH_OT_SetIncluded.bl_idname, text="Uncheck All", icon="CHECKBOX_DEHLT").include = False
             for obj in cloth_objects:
                 column = objects.column(align=True)
                 row = column.row(align=True)
@@ -292,27 +345,27 @@ class VIEW3D_PT_ClothManager(bpy.types.Panel):
                     row.prop(modifier, "show_render", text="", icon=(
                         "RESTRICT_RENDER_OFF" if modifier.show_render else "RESTRICT_RENDER_ON"
                     ))
-                    status = "Baked" if cache.is_baked else "Not Baked"
+                    status = "Baked" if cache.is_baked else "Unbaked"
                     if cache.is_outdated:
                         status += " · outdated"
-                    column.label(text=f"Status: {status}", icon="FILE_TICK" if cache.is_baked else "FILE_CACHE")
+                    column.label(text=status, icon="FILE_TICK" if cache.is_baked else "FILE_CACHE")
                     column.label(text=cache.info or "No cache data")
-                    column.label(text=f"Cache range: {cache.frame_start}–{cache.frame_end}")
+                    column.label(text=f"Frames {cache.frame_start}–{cache.frame_end}")
                     if cache.use_external:
                         column.label(text="External cache; skipped", icon="INFO")
                 objects.separator()
 
-        about = section(layout, "About", icon="INFO", section_id="about")
+        about = section(layout, "About", icon="INFO", section_id="about", default_closed=True)
         if about is not None:
-            about.label(text="Bake keeps cached frames; no new simulation")
-            about.label(text="Missing frames stay missing")
-            about.label(text="Includes every checked object's Cloth caches")
-            about.label(text="Reset frees bakes and invalidates cached frames")
-            about.label(text="Other physics on those objects may need")
-            about.label(text="resimulation too; freed bakes need it to restore")
+            about.label(text="Play from cache start before baking.")
+            about.label(text="Bake keeps existing simulated frames.")
+            about.label(text="Missing frames are not simulated.")
+            about.label(text="Bake before jumping through animation.")
+            about.label(text="Reset needs replay; Undo cannot restore.")
+            about.label(text="Other physics may need replay too.")
 
 
-CLASSES = (CLOTH_OT_BakeFromCache, CLOTH_OT_ResetBakes, VIEW3D_PT_ClothManager)
+CLASSES = (CLOTH_OT_BakeFromCache, CLOTH_OT_ResetBakes, CLOTH_OT_SetIncluded, VIEW3D_PT_ClothManager)
 classes = CLASSES  # Preserve the supplied script's public class collection.
 _registered_classes = []
 _owned_property = None

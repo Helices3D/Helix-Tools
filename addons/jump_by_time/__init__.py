@@ -19,7 +19,7 @@ _UPDATER = create_updater(__package__, __file__)
 bl_info = {
     "name": "Jump By Time",
     "author": "ChatGPT, Helices3D",
-    "version": (2, 1, 0),
+    "version": (2, 2, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Map external dialogue timestamps to scene frames with an adjustable start offset",
@@ -206,7 +206,20 @@ class JBT_OT_jump(bpy.types.Operator):
     """Jump to an external elapsed timestamp using the starting frame offset"""
     bl_idname = "jbt.jump_to_time"
     bl_label = "Jump to Time"
+    bl_description = "Jump to the entered external time using the saved frame offset and frame rate"
     bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def description(cls, context, properties):
+        scene = getattr(context, "scene", None)
+        if scene is None:
+            return cls.bl_description
+        try:
+            requested = target_frame(scene)
+            result = resolve_target(scene, requested)
+        except (ValueError, OverflowError) as error:
+            return f"Cannot jump: {error}"
+        return f"{cls.bl_description}. Target: frame {result}; external time zero: frame {scene.jbt_offset}"
 
     def execute(self, context):
         scene = context.scene
@@ -229,6 +242,7 @@ class JBT_OT_align_offset(bpy.types.Operator):
     """Make the entered external time correspond to the current Blender frame"""
     bl_idname = "jbt.align_offset"
     bl_label = "Align Time to Current Frame"
+    bl_description = "Adjust the starting offset so the entered external time matches the current Blender frame"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -258,45 +272,56 @@ class JBT_PT_panel(bpy.types.Panel):
         layout = self.layout
         setup_layout(layout)
         scene = context.scene
-        timing = section(layout, "External Time", section_id="external_time")
+        valid, requested, result, error = True, None, None, None
+        try:
+            requested = target_frame(scene)
+            result = resolve_target(scene, requested)
+        except (ValueError, OverflowError) as exc:
+            valid, error = False, str(exc)
+
+        timing = section(layout, "External Time", icon="TIME", section_id="external_time")
         if timing is not None:
-            timing.prop(scene, "jbt_input_mode")
+            timing.prop(scene, "jbt_input_mode", text="Format")
             if scene.jbt_input_mode == "TIMESTAMP":
                 timing.prop(scene, "jbt_timestamp")
-                timing.label(text="HH:MM:SS.mmm · elapsed time", icon="TIME")
             else:
                 timing.prop(scene, "jbt_seconds")
-                timing.prop(scene, "jbt_frames")
+                timing.prop(scene, "jbt_frames", text="Extra Frames")
+            timing.prop(scene, "jbt_offset", text="Start Frame")
+            if valid:
+                timing.label(text=f"Target frame: {result}", icon="TIME")
+                if requested != result:
+                    timing.label(text=f"Clamped from frame {requested}", icon="INFO")
+                elif not scene.frame_start <= requested <= scene.frame_end:
+                    timing.label(text="Outside playback range", icon="INFO")
+            else:
+                timing.label(text="Invalid time input" if requested is None else "Target frame is not allowed", icon="ERROR")
+            action = timing.column()
+            action.enabled = valid
+            action.scale_y = 1.25
+            action.operator(JBT_OT_jump.bl_idname, icon="PLAY")
 
-        mapping = section(layout, "Timeline Mapping", section_id="timeline_mapping")
+        mapping = section(layout, "Timeline Mapping", icon="TRACKING", section_id="timeline_mapping", default_closed=True)
         if mapping is not None:
-            mapping.prop(scene, "jbt_offset")
-            mapping.operator(JBT_OT_align_offset.bl_idname, icon="TRACKING")
-            mapping.prop(scene, "jbt_use_scene_fps")
+            mapping.operator(JBT_OT_align_offset.bl_idname, text="Align to Current Frame", icon="TRACKING")
+            mapping.prop(scene, "jbt_use_scene_fps", text="Scene Frame Rate")
             if not scene.jbt_use_scene_fps:
-                mapping.prop(scene, "jbt_fps_override")
-            mapping.label(text=f"Effective frame rate: {selected_fps(scene):.6g} fps")
-            mapping.prop(scene, "jbt_range_policy")
+                mapping.prop(scene, "jbt_fps_override", text="Frame Rate")
+            mapping.label(text=f"Using {selected_fps(scene):.6g} fps", icon="TIME")
+            mapping.prop(scene, "jbt_range_policy", text="Outside Range")
 
-        preview = section(layout, "Jump Preview", section_id="jump_preview")
+        preview = section(layout, "Jump Preview", icon="INFO", section_id="jump_preview", default_closed=True)
         if preview is not None:
-            valid = True
-            try:
-                requested = target_frame(scene)
-                result = resolve_target(scene, requested)
+            if valid:
                 preview.label(text=f"Target frame: {result}", icon="TIME")
                 if requested != result:
-                    preview.label(text=f"Requested {requested}; clamped to playback range", icon="INFO")
+                    preview.label(text=f"Requested: {requested} (clamped)", icon="INFO")
                 elif not scene.frame_start <= requested <= scene.frame_end:
-                    preview.label(text="Outside playback range (allowed)", icon="INFO")
-            except (ValueError, OverflowError) as error:
-                valid = False
-                preview.label(text=str(error), icon="ERROR")
+                    preview.label(text="Outside range: allowed", icon="INFO")
+            else:
+                preview.label(text=error, icon="ERROR")
             preview.label(text=f"Current frame: {scene.frame_current}")
             preview.label(text=f"Elapsed: {format_timestamp((scene.frame_current - scene.jbt_offset) / selected_fps(scene))}")
-            row = preview.row()
-            row.enabled = valid
-            row.operator(JBT_OT_jump.bl_idname, icon="PLAY")
 
 
 classes = (JBT_OT_jump, JBT_OT_align_offset, JBT_PT_panel)

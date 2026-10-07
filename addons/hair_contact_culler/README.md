@@ -28,7 +28,7 @@ when prompted. See the [update guide](https://github.com/Helices3D/Helix-Tools/b
 4. Use **Show Original** to compare. If the wrong end survives, change
    **Strand root** from Auto to **First point** or **Last point**, then rebuild.
 5. Choose **Full**, **Low**, or **Hide** for viewport detail. Renders always use
-   Full retained strand detail, with separate **Trim in render** switches.
+   Full retained strand detail, with separate garment **Render** switches.
 
 **Auto** chooses each root using its attachment surface, then endpoint thickness,
 then the first stored point. A root already touching a garment removes the whole
@@ -38,11 +38,11 @@ strand. Include the character body in the garment list only when intended.
 
 - Select the hair and new clothing, choose **Add Selected Garments**, then
   **Rebuild Hair Trim**. Use a row's **X** to remove a garment, then rebuild.
-- **Trim in view / Trim in render** and garment visibility use saved contacts
+- Garment **Viewport / Render** switches and garment visibility use saved contacts
   immediately. With overlapping garments, the earliest active contact wins.
 - Rebuild after changing pose, fit, hair positions/radii, root direction, or
   clearance. This is a fitted-pose tool; it does not solve new animation collisions.
-- **Maintenance + restore → Remove Setup** restores the original groom.
+- **Maintenance → Remove Setup** restores the original groom.
   **Show Original** is a temporary viewport comparison; it does not change renders.
 
 ## Supported inputs

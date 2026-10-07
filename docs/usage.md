@@ -18,6 +18,9 @@ Versioned ZIPs are also available on the
 Click a section's disclosure header to collapse or expand its boxed controls.
 Each section folds independently; collapsing it only hides its controls and
 does not change the tool's settings or results.
+Primary actions stay near their inputs. Optional mapping, display, sampling,
+and maintenance controls start collapsed; expand them when needed. Hover over
+a control for its explanation, or use the tool's help section or Quick Guide.
 
 Save a backup of an existing `.blend` before upgrading. When installing a
 replacement ZIP manually, disable the previous copy before enabling its
@@ -70,14 +73,19 @@ to editing-time equivalents in a Blender animation.
   overflow is allowed without losing frames at fractional rates.
 - **Elapsed Timestamp** accepts `SS.mmm`, `MM:SS.mmm`, or `HH:MM:SS.mmm`, including
   negative values. These are elapsed timestamps, not SMPTE/drop-frame labels.
-- **Starting Frame Offset** is the Blender frame corresponding to time zero in
+- **Start Frame** (the starting-frame offset) is the Blender frame corresponding to time zero in
   the external clip or timeline segment. For example, at 30 fps an offset of 100
   maps 2 seconds + 5 frames to Blender frame 165.
 - To calibrate from a known moment, enter its external timestamp, place Blender's
-  playhead at the matching moment, and choose **Align Time to Current Frame**.
+  playhead at the matching moment, expand **Timeline Mapping**, and choose
+  **Align to Current Frame**.
 - Use the scene's effective frame rate (`fps / fps_base`) or a fractional override.
   The preview shows the actual destination. **Outside Playback Range** explicitly
   allows, clamps, or cancels the jump.
+
+The destination and **Jump to Time** button are next to the time inputs.
+Expand **Jump Preview** for the current frame, elapsed time, and detailed input
+errors. **Timeline Mapping** contains frame-rate and outside-range settings.
 
 Conversion rounds elapsed time to the nearest whole frame; exact half frames round
 away from zero. The integer offset is then added. This prevents repeated rounding
@@ -97,6 +105,7 @@ creates helpers; it does not add those bone constraints automatically. Moving th
 source later does not move the captured helper.
 
 Display options control the helper's size, name display, and front visibility.
+Expand **Anchor Options** to change them or the local-orientation setting.
 The management panel records the source object, rig, and bone for every newly
 created helper. Object pointers and bone identifiers preserve associations across
 renaming and saved `.blend` files. Deleted sources remain visibly identifiable as
@@ -105,8 +114,11 @@ Read-only linked bones use name tracking when an identifier cannot be stored.
 Copied bones with ambiguous identifiers are shown explicitly rather than silently
 reassigning existing anchors.
 
-Use the rig filter to manage one rig's helpers. **Hide** affects the current view
-layer's viewport visibility; it does not disable rendering. **Restore Visibility**
+Use the rig filter to manage one rig's helpers. The rig shortcut uses the active
+armature. The scrolling anchor list can search by anchor, source, rig, or bone
+name; highlight a row to inspect its source and use its select button to activate
+the helper. **Hide** affects the current view
+layer's viewport visibility; it does not disable rendering. **Restore**
 respects helpers that were already hidden before the tool hid that rig. Helpers
 for other rigs and ordinary scene empties are left alone.
 Read-only linked helpers are skipped because their hide/restore metadata cannot
@@ -118,9 +130,11 @@ Set a scene camera or camera-cut markers, choose the animation range and samples
 per frame, then recalculate. An object is kept if its evaluated bounds intersect
 any sampled camera view. A tolerance expands the camera border to retain borderline
 geometry. The scan restores the current frame and camera afterwards.
+The panel includes a **Camera** picker and reports camera-cut markers.
+Expand **Sampling Options** for frame margin and samples per frame.
 
 Culled geometry is grouped for reversible viewport/render hiding. Compare the
-result using the visibility toggle, then restore the original collection
+result using **Show Full Scene / Show Culled Scene**, then **Restore Collections** to restore the original collection
 memberships and visibility when finished. Collection and scene references make
 restoration durable across renaming and saving/reopening the project.
 
@@ -143,14 +157,17 @@ surface, then endpoint thickness, then stored point order. If the wrong end
 survives, choose **First point** or **Last point** and rebuild.
 
 **Full / Low / Hide** control viewport detail. Renders use Full retained strand
-detail and the separate **Trim in render** switches. **Show Original** affects
+detail and the separate garment **Render** switches. **Show Original** affects
 only the viewport. Garment visibility also controls its trim contribution.
 
 To extend an existing setup, select the hair and new meshes, click
 **Add Selected Garments**, then rebuild. Remove an item with its row's **X**.
 Rebuild after changes to pose, garment fit, hair, radii, root direction, or
 clearance: saved contacts do not find new collisions on every animation frame.
-**Maintenance + restore → Remove Setup** restores the authored groom.
+**Garments → Viewport / Render** controls each garment's contribution to the trim.
+**Maintenance → Remove Setup** restores the authored groom. **Hair Trim** keeps
+Build/Rebuild and its status first; **Advanced** retains clearance and the saved
+root-detection summary. **Quick Guide** explains the full workflow in Blender.
 
 The initial release supports editable sampled POLY hair, fixed topology, explicit
 point radii, one material, uniform world scale, and one scene/view layer.
@@ -231,15 +248,18 @@ from one panel, rather than clicking through each cage. Unbaked simulations
 usually need sequential playback from their simulation start; jumping ahead can
 produce incorrect motion or expensive simulation updates. Play from that start
 (often frame 0, depending on the cache range) through the animation frames you
-need, then preserve the simulated data with **Current Cache to Bake** before
+need, then preserve the simulated data with **Cache to Bake** before
 navigating those frames.
 
 Open **Helix Tools → Cloth Cache Manager** in Object Mode. Its checklist is
 independent of Blender's object selection; checked objects are included by
 default, and their choices are saved in the `.blend`. Each Cloth modifier shows
 its baked/outdated state, Blender's cache summary, and viewport/render switches.
+**Check All / Uncheck All** changes inclusion flags for editable Cloth objects
+in the current view layer. It preserves Blender's object selection and leaves
+excluded or linked objects alone.
 
-**Current Cache to Bake** promotes frames already simulated into a bake. It does
+**Cache to Bake** (the **Current Cache to Bake** operator) promotes frames already simulated into a bake. It does
 not run a new simulation or fill missing frames; a partially played timeline
 produces a partial bake. Empty, outdated, and unverified caches are skipped, and
 existing bakes are left alone. Play the simulation again before promoting an

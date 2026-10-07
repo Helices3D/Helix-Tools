@@ -18,6 +18,45 @@ MODULE_NAMES = (
     "area_light_shadow_control", "hair_contact_culler", "cloth_cache_manager",
 )
 
+# These are user-facing controls available before the UI refresh (5162883).
+# Their placement and wording may change, but each capability must remain
+# accessible by opening its section in the appropriate scene/context.
+BASELINE_CONTROLS = {
+    "jump_by_time": (
+        {"jbt_input_mode", "jbt_timestamp", "jbt_seconds", "jbt_frames", "jbt_offset",
+         "jbt_use_scene_fps", "jbt_fps_override", "jbt_range_policy"},
+        {"jbt.jump_to_time", "jbt.align_offset"},
+    ),
+    "smart_empty": (
+        {"bone_point", "display_type", "empty_size", "name_suffix", "show_name",
+         "show_in_front", "use_local_orientation", "rig", "list_scope"},
+        {"object.add_smart_empty_baked", "object.smart_empty_use_active_rig",
+         "object.smart_empty_rig_visibility", "object.smart_empty_select"},
+    ),
+    "camera_timeline_culler": (
+        {"scope", "tolerance", "substeps"},
+        {"object.camera_cull_timeline", "object.camera_cull_toggle", "object.camera_cull_restore"},
+    ),
+    "area_light_shadow_control": (
+        {"scope", "collection", "size_light_types", "size_reduction", "minimum_size",
+         "shadow_preset", "shadow_filter", "shadow_resolution", "absolute_resolution",
+         "shadow_jitter", "shadow_overblur", "shadow_scope", "shadow_casting", "viewport_jitter"},
+        {"alsc.collection_add", "alsc.collection_remove", "alsc.enable_eevee_shadows",
+         "alsc.refresh_sizes", "alsc.status_details", "alsc.capture_sizes", "alsc.restore_sizes",
+         "alsc.apply_shadows", "alsc.eevee_scene_quality", "alsc.restore_render_settings",
+         "alsc.save_suggested_startup", "alsc.restore_previous_startup"},
+    ),
+    "hair_contact_culler": (
+        {"viewport", "render", "root_mode", "preview_original", "mode", "low_percent", "allowance"},
+        {"helix.hair_cull_help", "helix.hair_cull_build", "helix.hair_cull_remove_item",
+         "helix.hair_cull_add_items", "helix.hair_cull_validate", "helix.hair_cull_remove"},
+    ),
+    "cloth_cache_manager": (
+        {"cloth_tool_selected", "show_viewport", "show_render"},
+        {"cloth_manager.bake_from_cache", "cloth_manager.reset_bakes"},
+    ),
+}
+
 
 def _freeze(value):
     if isinstance(value, bpy.types.ID):
@@ -54,15 +93,34 @@ class LayoutTrace:
         self.headers = []
         self.calls = {}
         self.root_calls = []
+        self.controls = []
         self.layout = Layout(self)
 
 
 class Layout:
-    def __init__(self, trace, *, section=None, header=False, root=True):
+    def __init__(self, trace, *, section=None, header=False, root=True, parent=None):
         self.trace = trace
         self.section = section
         self.header = header
         self.root = root
+        self.parent = parent
+        self._enabled = self._active = True
+
+    @property
+    def enabled(self):
+        return self._enabled and (self.parent is None or self.parent.enabled)
+
+    @enabled.setter
+    def enabled(self, value):
+        self._enabled = bool(value)
+
+    @property
+    def active(self):
+        return self._active and (self.parent is None or self.parent.active)
+
+    @active.setter
+    def active(self, value):
+        self._active = bool(value)
 
     def _record(self, method, *arguments):
         entry = (method, *arguments)
@@ -77,7 +135,14 @@ class Layout:
 
     def _child(self, method):
         self._record(method)
-        return Layout(self.trace, section=self.section, root=False)
+        return Layout(self.trace, section=self.section, root=False, parent=self)
+
+    def _control(self, kind, identifier, *, data=None, properties=None):
+        self.trace.controls.append({
+            "kind": kind, "identifier": identifier, "data": data,
+            "properties": properties, "section": self.section,
+            "enabled": self.enabled, "active": self.active,
+        })
 
     def panel(self, identifier, *, default_closed=False):
         if not self.root:
@@ -91,8 +156,8 @@ class Layout:
             or identifier == self.trace.closed_id
             or self.trace.mode == "defaults" and default_closed
         )
-        header = Layout(self.trace, section=identifier, header=True, root=False)
-        body = None if closed else Layout(self.trace, section=identifier, root=False)
+        header = Layout(self.trace, section=identifier, header=True, root=False, parent=self)
+        body = None if closed else Layout(self.trace, section=identifier, root=False, parent=self)
         return header, body
 
     def box(self):
@@ -112,12 +177,17 @@ class Layout:
         if data.bl_rna.properties.get(property_name) is None:
             raise AssertionError(f"Unknown RNA field: {property_name}")
         self._record("prop", property_name, _freeze(getattr(data, property_name)))
+        self._control("prop", property_name, data=data)
 
     def operator(self, identifier, **kwargs):
         namespace, name = identifier.split(".", 1)
-        getattr(getattr(bpy.ops, namespace), name).get_rna_type()
+        operation = getattr(getattr(bpy.ops, namespace), name)
+        operation.get_rna_type()
         self._record("operator", identifier)
-        return SimpleNamespace()
+        properties = SimpleNamespace()
+        self._control("operator", identifier, properties=properties)
+        self.trace.controls[-1]["available"] = self.enabled and operation.poll()
+        return properties
 
     def separator(self, **kwargs):
         self._record("separator")
@@ -125,6 +195,25 @@ class Layout:
     def template_list(self, list_type, list_id, data, field, active_data, active_field, **kwargs):
         self._record("template_list", list_type, len(getattr(data, field)),
                      getattr(active_data, active_field))
+        list_class = bpy.types.UIList.bl_rna_get_subclass_py(list_type, None)
+        if list_class is None:
+            raise AssertionError(f"Unknown UIList: {list_type}")
+        # Native list callbacks own the controls inside a row. Exercise their
+        # default filtering as well, instead of considering a template call
+        # sufficient evidence that each item's controls are reachable.
+        ui_list = SimpleNamespace(
+            filter_name="", use_filter_invert=False, use_filter_sort_alpha=False,
+            bitflag_filter_item=1 << 30, bitflag_item_never_show=1 << 16,
+        )
+        flags = []
+        if "filter_items" in list_class.__dict__:
+            flags, _ = list_class.filter_items(ui_list, bpy.context, data, field)
+        for index, item in enumerate(getattr(data, field)):
+            if flags and (flags[index] & ui_list.bitflag_item_never_show
+                          or not flags[index] & ui_list.bitflag_filter_item):
+                continue
+            list_class.draw_item(ui_list, bpy.context, self, data, item, 0,
+                                 active_data, active_field, index)
 
 
 class SidebarDrawTests(unittest.TestCase):
@@ -309,21 +398,123 @@ class SidebarDrawTests(unittest.TestCase):
         for package, panels in self.panels.items():
             for panel in panels:
                 trace = self.draw(panel, mode="defaults")
-                titles = {identifier: title for identifier, title, _ in trace.headers}
                 for identifier, default_closed in trace.panels:
                     with self.subTest(section=identifier):
                         self.assertTrue(identifier.startswith(f"helix_tools.{package}."))
                         self.assertNotIn(identifier, owners, "Native section IDs must not collide")
                         owners[identifier] = package
-                        expected_closed = (
-                            package == "hair_contact_culler" and titles[identifier] in {
-                                "Advanced trim settings", "Maintenance + restore",
-                            }
-                            or package == "area_light_shadow_control" and identifier.endswith(".startup")
-                        )
-                        self.assertEqual(default_closed, expected_closed)
-                        self.assertEqual(bool(trace.calls[identifier]), not expected_closed)
+                        self.assertEqual(bool(trace.calls[identifier]), not default_closed)
         self.assertEqual(set(owners.values()), set(MODULE_NAMES))
+
+    def test_baseline_capabilities_remain_reachable_across_conditional_contexts(self):
+        self.populated_scene()
+        found = {package: {"prop": set(), "operator": set()} for package in MODULE_NAMES}
+
+        def collect(package):
+            for panel in self.panels[package]:
+                for control in self.draw(panel).controls:
+                    found[package][control["kind"]].add(control["identifier"])
+
+        for package in MODULE_NAMES:
+            collect(package)
+        self.scene.jbt_input_mode = "TIMESTAMP"
+        self.scene.jbt_timestamp = "00:00:00.000"
+        self.scene.jbt_use_scene_fps = False
+        collect("jump_by_time")
+        self.metadata.helix_hair_cull.mode = "LOW"
+        collect("hair_contact_culler")
+        settings = self.scene.area_light_shadow_control
+        settings.scope = "COLLECTIONS"
+        collection = bpy.data.collections.new("Feature inventory light targets")
+        self.scene.collection.children.link(collection)
+        for obj in self.scene.objects:
+            if obj.type == "LIGHT":
+                collection.objects.link(obj)
+        settings.collections.add().collection = collection
+        collect("area_light_shadow_control")
+        bpy.ops.object.armature_add()
+        bpy.ops.object.mode_set(mode="POSE")
+        try:
+            collect("smart_empty")
+        finally:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        for package, (fields, operators) in BASELINE_CONTROLS.items():
+            with self.subTest(package=package):
+                self.assertFalse(fields - found[package]["prop"], "Some existing settings are unreachable")
+                self.assertFalse(operators - found[package]["operator"], "Some existing actions are unreachable")
+
+    def test_primary_actions_are_reachable_with_optional_sections_closed_by_default(self):
+        self.populated_scene()
+        actions = {
+            "jump_by_time": "jbt.jump_to_time",
+            "smart_empty": "object.add_smart_empty_baked",
+            "camera_timeline_culler": "object.camera_cull_timeline",
+            "area_light_shadow_control": "alsc.enable_eevee_shadows",
+            "hair_contact_culler": "helix.hair_cull_build",
+            "cloth_cache_manager": "cloth_manager.bake_from_cache",
+        }
+        for package, action in actions.items():
+            with self.subTest(package=package):
+                controls = [control for panel in self.panels[package]
+                            for control in self.draw(panel, mode="defaults").controls
+                            if control["kind"] == "operator" and control["identifier"] == action]
+                self.assertTrue(controls, "The normal action requires opening optional settings")
+                self.assertTrue(any(control["available"] for control in controls))
+
+    def test_jump_primary_action_disables_invalid_input_without_requiring_mapping(self):
+        panel = self.panels["jump_by_time"][0]
+        self.scene.jbt_input_mode = "TIMESTAMP"
+        for timestamp, enabled in (("00:00:01.000", True), ("invalid", False)):
+            with self.subTest(timestamp=timestamp):
+                self.scene.jbt_timestamp = timestamp
+                controls = [control for control in self.draw(panel, mode="defaults").controls
+                            if control["identifier"] == "jbt.jump_to_time"]
+                self.assertEqual(len(controls), 1)
+                self.assertEqual(controls[0]["enabled"], enabled)
+
+    def test_cloth_batch_action_availability_matches_checked_current_layer_caches(self):
+        cloth = self.cloth()
+        panel = self.panels["cloth_cache_manager"][0]
+
+        def batch_controls():
+            return [control for control in self.draw(panel, mode="defaults").controls
+                    if control["identifier"] in {"cloth_manager.bake_from_cache", "cloth_manager.reset_bakes"}]
+
+        self.assertTrue(all(control["available"] for control in batch_controls()))
+        cloth.cloth_tool_selected = False
+        self.assertTrue(all(not control["available"] for control in batch_controls()))
+        cloth.cloth_tool_selected = True
+        bpy.context.view_layer.objects.active = cloth
+        cloth.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        try:
+            self.assertTrue(all(not control["available"] for control in batch_controls()))
+        finally:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        cloth.modifiers[0].point_cache.use_external = True
+        self.assertTrue(all(not control["available"] for control in batch_controls()))
+
+    def test_camera_scan_requires_camera_and_valid_results_but_supports_marker_camera(self):
+        panel = self.panels["camera_timeline_culler"][0]
+
+        def scan_available():
+            controls = [control for control in self.draw(panel, mode="defaults").controls
+                        if control["identifier"] == "object.camera_cull_timeline"]
+            self.assertEqual(len(controls), 1)
+            return controls[0]["available"]
+
+        self.mesh("Geometry", (0, 0, -10))
+        self.assertFalse(scan_available())
+        camera = bpy.data.objects.new("Marker Camera", bpy.data.cameras.new("Marker Camera"))
+        self.scene.collection.objects.link(camera)
+        self.scene.timeline_markers.new("Camera Cut", frame=1).camera = camera
+        self.assertTrue(scan_available())
+        self.scene.camera = camera
+        group = self.camera_results()
+        self.assertTrue(scan_available())
+        unrelated = bpy.data.objects.new("Unrelated content", None)
+        group.objects.link(unrelated)
+        self.assertFalse(scan_available())
 
     def test_hair_before_build_preserves_ids_and_later_build_section(self):
         self.hair()

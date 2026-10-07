@@ -94,6 +94,50 @@ class ClothCacheTests(unittest.TestCase):
         self.assertFalse(skipped)
         self.assertTrue(checked.cloth_tool_selected)
 
+    def test_check_all_changes_only_cloth_inclusion_not_selection_or_physics(self):
+        first, _ = self.cloth("First")
+        second, _ = self.cloth("Second")
+        second.cloth_tool_selected = False
+        bystander = bpy.data.objects.new("Selected bystander without cloth", None)
+        self.scene.collection.objects.link(bystander)
+        bystander.cloth_tool_selected = False
+        first.select_set(False)
+        second.select_set(False)
+        bystander.select_set(True)
+        bpy.context.view_layer.objects.active = bystander
+        first.hide_select = True
+        self.scene.frame_set(3, subframe=0.25)
+        before = self.state()
+        for include in (True, False, False, True):
+            with self.subTest(include=include):
+                self.assertEqual(bpy.ops.cloth_manager.set_included(include=include), {"FINISHED"})
+                self.assertEqual(first.cloth_tool_selected, include)
+                self.assertEqual(second.cloth_tool_selected, include)
+                self.assertFalse(bystander.cloth_tool_selected)
+                self.assertEqual(self.state(), before)
+
+    def test_uncheck_all_preserves_excluded_cloth_and_other_scenes(self):
+        accessible, _ = self.cloth("Accessible")
+        excluded, _ = self.cloth("Excluded")
+        collection = bpy.data.collections.new("Excluded physics")
+        self.scene.collection.children.link(collection)
+        for original in tuple(excluded.users_collection):
+            original.objects.unlink(excluded)
+        collection.objects.link(excluded)
+        bpy.context.view_layer.layer_collection.children[collection.name].exclude = True
+        other, _ = self.cloth("Other scene cloth")
+        other_scene = bpy.data.scenes.new("Other scene")
+        for original in tuple(other.users_collection):
+            original.objects.unlink(other)
+        other_scene.collection.objects.link(other)
+        bpy.context.view_layer.update()
+        self.assertEqual(bpy.ops.cloth_manager.set_included(include=False), {"FINISHED"})
+        self.assertFalse(accessible.cloth_tool_selected)
+        self.assertTrue(excluded.cloth_tool_selected)
+        self.assertTrue(other.cloth_tool_selected)
+        collection_layer = bpy.context.view_layer.layer_collection.children[collection.name]
+        self.assertTrue(collection_layer.exclude)
+
     def test_real_current_cache_promotion_and_repeat_preserve_scene_state(self):
         obj, (modifier,) = self.cloth()
         self.simulate(obj)
@@ -376,6 +420,14 @@ class ClothCacheTests(unittest.TestCase):
             self.assertEqual(len(skipped), 2, skipped)
             result = addon.process_caches(bpy.context, 'RESET')
             self.assertEqual((result.processed, result.skipped, result.failed), (0, 2, 0))
+            self.assertEqual(bpy.ops.cloth_manager.set_included(include=False), {"CANCELLED"})
+            self.assertTrue(linked.cloth_tool_selected)
+            self.assertTrue(local.cloth_tool_selected)
+            editable, _ = self.cloth("Editable cloth")
+            self.assertEqual(bpy.ops.cloth_manager.set_included(include=False), {"FINISHED"})
+            self.assertFalse(editable.cloth_tool_selected)
+            self.assertTrue(linked.cloth_tool_selected)
+            self.assertTrue(local.cloth_tool_selected)
 
     def test_real_public_operators_promote_and_reset_the_existing_cache(self):
         obj, (modifier,) = self.cloth()

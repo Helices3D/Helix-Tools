@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Camera Timeline Culler",
     "author": "OpenAI, Helices3D",
-    "version": (2, 1, 0),
+    "version": (2, 2, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Hide geometry outside every sampled camera view; restore it at any time",
@@ -324,11 +324,11 @@ def _restore_object(obj, group, baseline, scene):
 
 class CameraCullSettings(bpy.types.PropertyGroup):
     tolerance: FloatProperty(
-        name="Frame Margin", description="Extra percent of image width and height retained on each side",
+        name="Frame Margin", description="Extra percent of image width and height retained on each side; protects near-edge geometry",
         default=5.0, min=0.0, max=100.0, soft_max=25.0, subtype="PERCENTAGE",
     )
     substeps: IntProperty(
-        name="Samples per Frame", description="Samples each frame interval; more samples retain brief motion",
+        name="Samples per Frame", description="Samples each frame interval; increase for fast motion or brief camera appearances",
         default=2, min=1, max=16,
     )
     scope: EnumProperty(
@@ -343,12 +343,18 @@ class CameraCullSettings(bpy.types.PropertyGroup):
 class OBJECT_OT_camera_cull_timeline(bpy.types.Operator):
     bl_idname = "object.camera_cull_timeline"
     bl_label = "Scan & Cull"
-    bl_description = "Hide only geometry outside every sampled camera view in the selected range"
+    bl_description = "Hide geometry outside every sampled camera view; follows timeline camera cuts. Rescan after scene changes; restore collections to reverse"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
-        return context.scene is not None and context.mode == "OBJECT"
+        if context.scene is None:
+            cls.poll_message_set("Open a scene to scan")
+            return False
+        if context.mode != "OBJECT":
+            cls.poll_message_set("Switch to Object Mode to scan the scene")
+            return False
+        return True
 
     def execute(self, context):
         scene, wm = context.scene, context.window_manager
@@ -562,36 +568,52 @@ class VIEW3D_PT_camera_cull_timeline(bpy.types.Panel):
         layout = self.layout
         setup_layout(layout)
         scene, settings = context.scene, context.scene.camera_cull_settings
-        scan = section(layout, "Sampling", icon="VIEW_CAMERA", section_id="sampling")
-        if scan is not None:
-            scan.prop(settings, "scope")
-            scan.prop(settings, "tolerance", slider=True)
-            scan.prop(settings, "substeps")
-            start, end = _range(scene)
-            scan.label(text=f"Frames {start}–{end} · up to {(end - start) * settings.substeps + 1:,} samples")
-            scan.label(text="Keeps anything visible at a sample")
-            scan.label(text="Fast motion may need more samples", icon="INFO")
-            if settings.scope == "PREVIEW":
-                scan.label(text="Visibility outside this range is ignored", icon="ERROR")
-            if scene.camera is None and not any(marker.camera for marker in scene.timeline_markers):
-                scan.label(text="Assign a scene camera to begin", icon="INFO")
-            scan.operator("object.camera_cull_timeline", icon="VIEWZOOM")
+        start, end = _range(scene)
+        camera_cuts = sum(marker.camera is not None for marker in scene.timeline_markers)
+        has_camera = scene.camera is not None or bool(camera_cuts)
         group = _scene_group(scene)
+        error = _group_error(group, scene)
+        scan = section(layout, "Camera Scan", icon="VIEW_CAMERA", section_id="sampling")
+        if scan is not None:
+            scan.prop(scene, "camera", text="Camera")
+            scan.prop(settings, "scope", text="Range")
+            scan.label(text=f"Frames {start}–{end}")
+            if start <= end:
+                scan.label(text=f"Up to {(end - start) * settings.substeps + 1:,} samples")
+            else:
+                scan.label(text="Start frame is after end frame", icon="ERROR")
+            if camera_cuts:
+                scan.label(text=f"Camera cuts: {camera_cuts}", icon="VIEW_CAMERA")
+            if settings.scope == "PREVIEW":
+                scan.label(text="Outside preview range is ignored", icon="ERROR")
+            if not has_camera:
+                scan.label(text="Choose a camera to begin", icon="INFO")
+            elif error:
+                scan.label(text="Resolve existing results first", icon="ERROR")
+            action = scan.column()
+            action.enabled = has_camera and start <= end and error is None
+            action.scale_y = 1.25
+            action.operator("object.camera_cull_timeline", icon="VIEWZOOM")
+        sampling = section(layout, "Sampling Options", icon="SETTINGS", section_id="sampling_options", default_closed=True)
+        if sampling is not None:
+            sampling.prop(settings, "tolerance", text="Margin", slider=True)
+            sampling.prop(settings, "substeps", text="Samples")
         if group is not None:
             results = section(layout, "Results", icon="OUTLINER_COLLECTION", section_id="results")
             if results is not None:
-                error = _group_error(group, scene)
                 if error:
-                    results.label(text="Results are shared or contain unrelated content", icon="ERROR")
-                    results.label(text="Separate that content before using results")
+                    results.label(text="Shared or unrelated content", icon="ERROR")
+                    results.label(text="Separate before changing results")
                 else:
-                    results.label(text=f"Hidden by collection: {len(group.objects)} objects")
-                    results.label(text="Culled view" if group.hide_viewport or group.hide_render else "Full view")
-                    results.operator("object.camera_cull_toggle", icon="HIDE_OFF")
-                    results.operator("object.camera_cull_restore", icon="LOOP_BACK")
+                    culled_view = group.hide_viewport or group.hide_render
+                    results.label(text=f"{len(group.objects)} culled objects")
+                    results.label(text="Showing culled scene" if culled_view else "Showing full scene")
+                    results.operator("object.camera_cull_toggle", text="Show Full Scene" if culled_view else "Show Culled Scene",
+                                     icon="HIDE_OFF" if culled_view else "HIDE_ON")
+                    results.operator("object.camera_cull_restore", text="Restore Collections", icon="LOOP_BACK")
         if "camera_cull_last_samples" in scene:
             layout.label(text=f"Last scan: {scene['camera_cull_last_samples']:,} samples ({scene['camera_cull_last_range']})")
-        help_box = section(layout, "About", icon="INFO", section_id="about")
+        help_box = section(layout, "About", icon="INFO", section_id="about", default_closed=True)
         if help_box is not None:
             help_box.label(text="Reversible; no visibility keyframes")
             help_box.label(text="Rescan after camera or scene changes")

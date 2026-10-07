@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Smart Empty",
     "author": "Gemini, Helices3D",
-    "version": (2, 1, 0),
+    "version": (2, 2, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools > Smart Empty",
     "description": "Create independent object or bone anchors and manage them per rig",
@@ -19,6 +19,7 @@ from bpy.props import (
     CollectionProperty,
     EnumProperty,
     FloatProperty,
+    IntProperty,
     PointerProperty,
     StringProperty,
 )
@@ -88,11 +89,19 @@ class SMART_EMPTY_PG_settings(bpy.types.PropertyGroup):
         description="Appended to the source object or bone name; Blender resolves duplicates",
         default=" Empty",
     )
-    show_name: BoolProperty(name="Show Name", default=True)
-    show_in_front: BoolProperty(name="In Front", default=True)
+    show_name: BoolProperty(
+        name="Show Name",
+        description="Display the new anchor's name in the viewport",
+        default=True,
+    )
+    show_in_front: BoolProperty(
+        name="In Front",
+        description="Display the new anchor through other objects in the viewport",
+        default=True,
+    )
     use_local_orientation: BoolProperty(
-        name="Use Local Transform Orientation",
-        description="Switch the current transform orientation to Local for moving the new anchor",
+        name="Local Orientation",
+        description="Switch transform orientation to Local for moving the new independent anchor; does not add a parent or constraint",
         default=True,
     )
     bone_point: EnumProperty(
@@ -110,12 +119,18 @@ class SMART_EMPTY_PG_settings(bpy.types.PropertyGroup):
         poll=_rig_poll,
     )
     list_scope: EnumProperty(
-        name="List",
+        name="Show",
         items=[
             ('RIG', "Selected Rig", "List tracked empties belonging to the chosen rig"),
             ('ALL', "All in Scene", "Include object anchors and anchors with deleted sources"),
         ],
         default='RIG',
+    )
+    anchor_index: IntProperty(
+        name="Anchor",
+        description="Highlighted anchor in this scene's tracked list; use Select to make it active",
+        default=0,
+        min=0,
     )
 
 
@@ -368,6 +383,7 @@ class SMART_EMPTY_OT_add_baked(bpy.types.Operator):
             settings.list_scope = 'RIG'
         else:
             settings.list_scope = 'ALL'
+        settings.anchor_index = context.scene.objects.find(empty.name)
 
         self.report({'INFO'}, f"Created independent anchor: {empty.name}")
         return {'FINISHED'}
@@ -410,6 +426,12 @@ class SMART_EMPTY_OT_rig_visibility(bpy.types.Operator):
     )
 
     @classmethod
+    def description(cls, context, properties):
+        if properties.action == 'RESTORE':
+            return "Restore this rig's anchor visibility from before Hide; previously hidden anchors stay hidden, and renders are unchanged"
+        return "Hide this rig's tracked anchors in the current view layer; preserve their prior visibility for Restore, and leave renders unchanged"
+
+    @classmethod
     def poll(cls, context):
         return context.scene.helix_smart_empty_settings.rig is not None
 
@@ -433,6 +455,13 @@ class SMART_EMPTY_OT_select(bpy.types.Operator):
 
     object_name: StringProperty(options={'SKIP_SAVE'})
 
+    @classmethod
+    def description(cls, context, properties):
+        obj = context.scene.objects.get(properties.object_name) if context.scene else None
+        if obj is not None and obj.type == 'EMPTY' and obj.helix_smart_empty.is_tracked:
+            return f"Select {obj.name}; source: {_source_description(obj.helix_smart_empty)}. Reveal it if locally hidden in this view layer"
+        return "Select this tracked anchor in Object Mode; reveal it if locally hidden in this view layer"
+
     def execute(self, context):
         obj = context.scene.objects.get(self.object_name)
         if obj is None or obj.type != 'EMPTY' or not obj.helix_smart_empty.is_tracked:
@@ -452,6 +481,61 @@ class SMART_EMPTY_OT_select(bpy.types.Operator):
         obj.select_set(True)
         context.view_layer.objects.active = obj
         return {'FINISHED'}
+
+
+def _in_list_scope(obj, settings):
+    """Keep presentation filtering independent from selection and scene mutation."""
+    return (
+        obj.type == 'EMPTY'
+        and obj.helix_smart_empty.is_tracked
+        and (
+            settings.list_scope == 'ALL'
+            or settings.rig is not None and obj.helix_smart_empty.rig == settings.rig
+        )
+    )
+
+
+class SMART_EMPTY_UL_anchors(bpy.types.UIList):
+    """A bounded, searchable view of actual scene objects, with no mirrored records."""
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index):
+        if not _in_list_scope(item, context.scene.helix_smart_empty_settings):
+            return
+        row = layout.row(align=True)
+        row.label(text=item.name, icon='EMPTY_AXIS')
+        select = row.row(align=True)
+        select.enabled = (
+            item.name in context.view_layer.objects
+            and not item.hide_viewport and not item.hide_select
+        )
+        select.operator(
+            "object.smart_empty_select", text="", icon='RESTRICT_SELECT_OFF',
+        ).object_name = item.name
+
+    def filter_items(self, context, data, property_name):
+        settings = context.scene.helix_smart_empty_settings
+        objects = getattr(data, property_name)
+        query = self.filter_name.strip().casefold()
+        flags = []
+        for obj in objects:
+            visible = _in_list_scope(obj, settings)
+            if not visible:
+                # Native UIList inversion must never expose untracked objects
+                # or anchors belonging to a different rig.
+                flags.append(self.bitflag_item_never_show)
+                continue
+            if visible and query:
+                matches = (
+                    query in obj.name.casefold()
+                    or query in _source_description(obj.helix_smart_empty).casefold()
+                )
+                visible = not matches if self.use_filter_invert else matches
+            flags.append(self.bitflag_filter_item if visible else 0)
+        order = (
+            bpy.types.UI_UL_list.sort_items_by_name(objects, "name")
+            if self.use_filter_sort_alpha else []
+        )
+        return flags, order
 
 
 class SMART_EMPTY_PT_panel(bpy.types.Panel):
@@ -474,38 +558,50 @@ class SMART_EMPTY_PT_panel(bpy.types.Panel):
             elif context.mode == 'OBJECT' and context.active_object:
                 create.label(text=f"Object: {context.active_object.name}", icon='OBJECT_DATA')
             else:
-                create.label(text="Select an object or a pose bone", icon='INFO')
-            create.prop(settings, "display_type")
-            create.prop(settings, "empty_size")
-            create.prop(settings, "name_suffix")
-            row = create.row(align=True)
-            row.prop(settings, "show_name")
-            row.prop(settings, "show_in_front")
-            create.prop(settings, "use_local_orientation")
-            create.operator("object.add_smart_empty_baked", text="Add Smart Empty", icon='ADD')
+                create.label(text="Select an object or pose bone.", icon='INFO')
+            action = create.column()
+            action.scale_y = 1.25
+            action.operator("object.add_smart_empty_baked", text="Add Smart Empty", icon='ADD')
+
+        options = section(
+            layout, "Anchor Options", 'PREFERENCES',
+            section_id="anchor_options", default_closed=True,
+        )
+        if options is not None:
+            options.prop(settings, "display_type")
+            options.prop(settings, "empty_size", text="Size")
+            options.prop(settings, "name_suffix", text="Suffix")
+            options.prop(settings, "show_name")
+            options.prop(settings, "show_in_front")
+            options.prop(settings, "use_local_orientation", text="Local Axes")
 
         manage = section(layout, "Tracked Anchors", 'OUTLINER_OB_EMPTY', section_id="tracked_anchors")
         if manage is not None:
-            manage.prop(settings, "rig")
-            manage.operator("object.smart_empty_use_active_rig", icon='ARMATURE_DATA')
+            rig_row = manage.row(align=True)
+            rig_row.prop(settings, "rig")
+            rig_row.operator("object.smart_empty_use_active_rig", text="", icon='ARMATURE_DATA')
             row = manage.row(align=True)
             row.enabled = settings.rig is not None
-            row.operator("object.smart_empty_rig_visibility", text="Hide Empties", icon='HIDE_ON').action = 'HIDE'
-            row.operator("object.smart_empty_rig_visibility", text="Restore Visibility", icon='HIDE_OFF').action = 'RESTORE'
-            manage.label(text="Viewport only; restore keeps prior hidden states", icon='INFO')
+            row.operator("object.smart_empty_rig_visibility", text="Hide", icon='HIDE_ON').action = 'HIDE'
+            row.operator("object.smart_empty_rig_visibility", text="Restore", icon='HIDE_OFF').action = 'RESTORE'
             manage.prop(settings, "list_scope")
-            objects = tracked_empties(context.scene)
-            if settings.list_scope == 'RIG':
-                objects = [obj for obj in objects if settings.rig and obj.helix_smart_empty.rig == settings.rig]
-            manage.label(text=f"{len(objects)} tracked empties")
-            for obj in objects:
-                item = manage.column(align=True)
-                row = item.row(align=True)
-                row.label(text=obj.name, icon='EMPTY_AXIS')
-                select = row.row(align=True)
-                select.enabled = obj.name in context.view_layer.objects and not obj.hide_viewport and not obj.hide_select
-                select.operator("object.smart_empty_select", text="", icon='RESTRICT_SELECT_OFF').object_name = obj.name
-                item.label(text=_source_description(obj.helix_smart_empty))
+            count = sum(_in_list_scope(obj, settings) for obj in context.scene.objects)
+            manage.label(
+                text="Choose a rig to list anchors." if settings.list_scope == 'RIG' and settings.rig is None
+                else f"{count} tracked anchors",
+            )
+            if count:
+                manage.template_list(
+                    "SMART_EMPTY_UL_anchors", "tracked_anchors", context.scene, "objects",
+                    settings, "anchor_index", rows=min(5, count), maxrows=5,
+                )
+                if settings.anchor_index < len(context.scene.objects):
+                    obj = context.scene.objects[settings.anchor_index]
+                    if _in_list_scope(obj, settings):
+                        manage.label(
+                            text=_source_description(obj.helix_smart_empty),
+                            icon='BONE_DATA' if obj.helix_smart_empty.bone_name else 'OBJECT_DATA',
+                        )
 
 
 classes = (
@@ -516,6 +612,7 @@ classes = (
     SMART_EMPTY_OT_use_active_rig,
     SMART_EMPTY_OT_rig_visibility,
     SMART_EMPTY_OT_select,
+    SMART_EMPTY_UL_anchors,
     SMART_EMPTY_PT_panel,
 )
 
@@ -529,6 +626,8 @@ def register():
             existing = bpy.types.Operator.bl_rna_get_subclass_py(f"{group.upper()}_OT_{name}")
         elif issubclass(cls, bpy.types.Panel):
             existing = bpy.types.Panel.bl_rna_get_subclass_py(cls.bl_idname)
+        elif issubclass(cls, bpy.types.UIList):
+            existing = bpy.types.UIList.bl_rna_get_subclass_py(cls.__name__)
         else:
             existing = bpy.types.PropertyGroup.bl_rna_get_subclass_py(cls.__name__)
         if existing is not None:
