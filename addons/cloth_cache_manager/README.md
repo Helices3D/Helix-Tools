@@ -3,8 +3,10 @@
 Manage cloth physics cages and other objects using Cloth modifiers from one
 panel. Play the simulation from its starting frame, preserve the simulated
 frames as bakes before timeline navigation, or reset checked objects' caches.
-Keep the original checklist, cache status, and viewport/render visibility
-controls in the shared **Helix Tools** sidebar.
+Cages are grouped by the models they affect, with optional model overrides.
+Keep the checklist, cache status, and viewport/render visibility controls in the
+shared **Helix Tools** sidebar. The reset warning can be hidden and restored
+from the add-on preferences.
 
 Targets **Blender 5.2.2 LTS**. Build the installable ZIP with
 `python scripts/build_releases.py` and install it through **Preferences → Get

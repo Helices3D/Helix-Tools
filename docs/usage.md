@@ -259,6 +259,15 @@ its baked/outdated state, Blender's cache summary, and viewport/render switches.
 in the current view layer. It preserves Blender's object selection and leaves
 excluded or linked objects alone.
 
+Cages appear in separate collapsible sections for the models they affect.
+Grouping follows deformation links such as Mesh Deform and Surface Deform,
+then combines meshes belonging to the same rig. A cage affecting multiple models
+appears once under **Shared Models**; unattached cages appear under **Ungrouped**.
+For an unusual setup, open **Grouping** and choose a **Model** override for the
+cage. Clear that field to return to automatic detection. Overrides are saved in
+the `.blend` and change the display grouping only; collapsing a group does not
+exclude its checked cages from batch actions.
+
 **Cache to Bake** (the **Current Cache to Bake** operator) promotes frames already simulated into a bake. It does
 not run a new simulation or fill missing frames; a partially played timeline
 produces a partial bake. Empty, outdated, and unverified caches are skipped, and
@@ -266,11 +275,19 @@ existing bakes are left alone. Play the simulation again before promoting an
 outdated cache.
 
 **Reset Bakes** confirms before freeing the checked objects' cloth bakes and
-marking their existing simulation data outdated. Simulate again to rebuild it.
+invalidating their existing simulation data. At the simulation start frame,
+Blender immediately clears that data; a cleared cache is a successful reset
+even when its status no longer says outdated. Simulate again to rebuild it.
 Blender may also mark other physics caches on the same objects outdated, so
 check any additional simulations before continuing. Other objects are left
 alone. Reset is not a recoverable cache backup or a promise of ordinary Undo:
 disk cache files may remain until subsequent simulation regenerates them.
+
+Tick **Don't show again** in the reset confirmation to skip future reset warnings.
+Restore the warning with **Show Reset Warning** in the Cloth Cache Manager add-on
+preferences, or the Helix Tools preferences when using the full suite. This
+choice follows Blender's normal preference saving; if Auto-Save Preferences is
+disabled, use **Save Preferences** to keep it across restarts.
 
 Batch actions preserve scene selection, active object, frame/subframe, visibility,
 and simulation settings. Linked/read-only targets, external caches, and objects

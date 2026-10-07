@@ -567,10 +567,41 @@ class SidebarDrawTests(unittest.TestCase):
         cloth.modifiers[0].show_render = False
         panel = self.panels["cloth_cache_manager"][0]
         opened = self.assert_closed_draws(panel)
-        object_section = next(identifier for identifier, title, _ in opened.headers if title == "Cloth Objects")
+        self.assertIn("Cloth Objects", [title for _, title, _ in opened.headers])
         self.assertEqual(sum(call[:2] == ("prop", "cloth_tool_selected")
-                             for call in opened.calls[object_section]), 2)
+                             for calls in opened.calls.values() for call in calls), 2)
         self.assertIn("About", [title for _, title, _ in opened.headers])
+
+    def test_cloth_model_sections_collapse_independently_and_keep_every_cage(self):
+        models = [self.mesh(name) for name in ("Orc A", "Orc B")]
+        cages = []
+        for model in models:
+            for index in range(2):
+                cage = self.mesh(f"{model.name} Cage {index + 1}")
+                cage.modifiers.new("Cloth", "CLOTH")
+                deform = model.modifiers.new(f"Cage {index + 1}", "MESH_DEFORM")
+                deform.object = cage
+                cages.append(cage)
+        cages[0].cloth_tool_selected = False
+        panel = self.panels["cloth_cache_manager"][0]
+        opened = self.assert_closed_draws(panel)
+        groups = self.modules["cloth_cache_manager"].cloth_groups(self.scene)
+        for group in groups:
+            identifier = next(identifier for identifier, title, _ in opened.headers
+                              if title == f"{group.label} (2)")
+            listed = {control["data"] for control in opened.controls
+                      if control["section"] == identifier
+                      and control["identifier"] == "cloth_tool_selected"}
+            self.assertEqual(listed, set(group.objects))
+            collapsed = self.draw(panel, closed_id=identifier)
+            listed = {control["data"] for control in collapsed.controls
+                      if control["identifier"] == "cloth_tool_selected"}
+            self.assertEqual(listed, set(cages) - set(group.objects))
+        defaults = self.draw(panel, mode="defaults")
+        self.assertFalse(any(control["identifier"] == "cloth_tool_model"
+                             for control in defaults.controls))
+        self.assertEqual({control["data"] for control in defaults.controls
+                          if control["identifier"] == "cloth_tool_selected"}, set(cages))
 
     def test_lighting_scope_source_shadow_and_renderer_branches_do_not_mutate(self):
         self.light()

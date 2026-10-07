@@ -164,6 +164,19 @@ class FullSuiteTests(unittest.TestCase):
                 self.bundle.unregister()
                 self.assert_clean()
 
+    def test_cloth_reset_warning_uses_the_installed_suite_preferences(self):
+        self.activate_bundle()
+        cloth = self.bundle.cloth_cache_manager
+        settings = cloth._settings
+        preferences = bpy.context.preferences.addons[self.bundle.__name__].preferences
+        self.assertEqual(settings.get_preferences(bpy.context), preferences)
+        self.assertIsNone(bpy.context.preferences.addons.get(cloth.__name__))
+        self.assertTrue(settings.should_confirm_reset(bpy.context))
+        preferences.cloth_confirm_resets = False
+        self.assertFalse(settings.should_confirm_reset(bpy.context))
+        preferences.cloth_confirm_resets = True
+        self.assertTrue(settings.should_confirm_reset(bpy.context))
+
     def test_failure_after_five_components_and_partial_hair_registration_rolls_back(self):
         import _bpy_restrict_state
 

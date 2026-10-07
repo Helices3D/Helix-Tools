@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Helix Tools",
     "author": "Helices3D",
-    "version": (1, 2, 0),
+    "version": (1, 3, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Install all six Helix Tools add-ons together",
@@ -91,7 +91,9 @@ def _properties(module):
     if module is hair_contact_culler:
         return ((bpy.types.Object, "helix_hair_cull"),)
     if module is cloth_cache_manager:
-        return ((bpy.types.Object, cloth_cache_manager.PROPERTY_NAME),)
+        return tuple((bpy.types.Object, name) for name in (
+            cloth_cache_manager.PROPERTY_NAME, cloth_cache_manager.GROUP_PROPERTY_NAME,
+        ))
     raise RuntimeError(f"Unknown Helix Tools component: {module.__name__}")
 
 
@@ -124,6 +126,7 @@ def register():
     _preflight_registration()
     failed_name = "Update Controls"
     try:
+        cloth_cache_manager.configure_preferences(_UPDATER)
         _UPDATER.register()
         for module in REGISTER_ORDER:
             failed_name = module.bl_info["name"]

@@ -7,7 +7,7 @@ Adapted from Cloth Cache Manager 1.1, by Gemini and Helices3D.
 bl_info = {
     "name": "Cloth Cache Manager",
     "author": "Gemini + Executive Produced by Helices3D",
-    "version": (1, 4, 0),
+    "version": (1, 5, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Manage cloth-cage caches for reliable timeline navigation",
@@ -18,8 +18,10 @@ from dataclasses import dataclass, field
 import re
 
 import bpy
-from bpy.props import BoolProperty
+from bpy.props import BoolProperty, PointerProperty
 
+from ._groups import GROUP_PROPERTY_NAME, cloth_groups, model_override_poll
+from ._settings import configure_preferences, set_confirmation_enabled, should_confirm_reset
 from ._ui import section, setup_layout
 from ._updates import create_updater
 
@@ -177,7 +179,11 @@ def process_caches(context, action):
                 # quality +/- trick, which corrupts quality at its upper limit.
                 obj.update_tag(refresh={"DATA"})
                 context.view_layer.update()
-                if frames not in {None, 0} and not cache.is_outdated:
+                # At the simulation start, evaluation consumes the outdated
+                # flag while clearing all cached frames. Either state proves
+                # the old simulation data is no longer reusable.
+                if (frames not in {None, 0} and not cache.is_outdated
+                        and cached_frame_count(cache) != 0):
                     raise RuntimeError("Blender did not invalidate the existing simulation cache")
             result.processed += 1
         except Exception as error:
@@ -228,7 +234,16 @@ class CLOTH_OT_ResetBakes(bpy.types.Operator):
     bl_label = "Reset Bakes"
     bl_options = {"REGISTER"}
 
+    dont_show_again: BoolProperty(
+        name="Don't show again",
+        description="Skip this warning for future resets; restore it in the add-on's preferences",
+        default=False, options={"SKIP_SAVE"},
+    )
+
     def invoke(self, context, event):
+        if not should_confirm_reset(context):
+            return self.execute(context)
+        self.dont_show_again = False
         return context.window_manager.invoke_props_dialog(self, width=420, confirm_text="Reset Cloth Caches")
 
     def draw(self, context):
@@ -239,9 +254,14 @@ class CLOTH_OT_ResetBakes(bpy.types.Operator):
         layout.label(text="be invalidated and need resimulation.")
         layout.label(text="Undo cannot restore a freed bake; simulate it again.")
         layout.label(text="Disk cache files can be regenerated on playback.")
+        layout.separator()
+        layout.prop(self, "dont_show_again")
 
     def execute(self, context):
-        return _report_batch(self, context, "RESET")
+        response = _report_batch(self, context, "RESET")
+        if "FINISHED" in response and self.dont_show_again:
+            set_confirmation_enabled(context, False)
+        return response
 
 
 class CLOTH_OT_SetIncluded(bpy.types.Operator):
@@ -321,9 +341,16 @@ class VIEW3D_PT_ClothManager(bpy.types.Panel):
             checks.enabled = any(_object_skip_reason(context, obj) is None for obj in cloth_objects)
             checks.operator(CLOTH_OT_SetIncluded.bl_idname, text="Check All", icon="CHECKBOX_HLT").include = True
             checks.operator(CLOTH_OT_SetIncluded.bl_idname, text="Uncheck All", icon="CHECKBOX_DEHLT").include = False
-            for obj in cloth_objects:
+        for group in cloth_groups(context.scene, cloth_objects):
+            icon = "ARMATURE_DATA" if group.model is not None and group.model.type == "ARMATURE" else "OUTLINER_OB_MESH"
+            objects = section(layout, f"{group.label} ({len(group.objects)})",
+                              icon=icon, section_id=group.key)
+            if objects is None:
+                continue
+            for obj in group.objects:
                 column = objects.column(align=True)
                 row = column.row(align=True)
+                row.use_property_split = False
                 row.enabled = obj.is_editable
                 row.prop(obj, PROPERTY_NAME, text="")
                 row.label(text=obj.name, icon="OBJECT_DATAMODE")
@@ -355,6 +382,14 @@ class VIEW3D_PT_ClothManager(bpy.types.Panel):
                         column.label(text="External cache; skipped", icon="INFO")
                 objects.separator()
 
+        grouping = section(layout, "Grouping", icon="OUTLINER", section_id="grouping", default_closed=True)
+        if grouping is not None:
+            for obj in sorted(cloth_objects, key=lambda obj: obj.name.casefold()):
+                column = grouping.column(align=True)
+                column.enabled = obj.is_editable
+                column.label(text=obj.name, icon="MOD_CLOTH")
+                column.prop(obj, GROUP_PROPERTY_NAME, text="Model")
+
         about = section(layout, "About", icon="INFO", section_id="about", default_closed=True)
         if about is not None:
             about.label(text="Play from cache start before baking.")
@@ -368,7 +403,7 @@ class VIEW3D_PT_ClothManager(bpy.types.Panel):
 CLASSES = (CLOTH_OT_BakeFromCache, CLOTH_OT_ResetBakes, CLOTH_OT_SetIncluded, VIEW3D_PT_ClothManager)
 classes = CLASSES  # Preserve the supplied script's public class collection.
 _registered_classes = []
-_owned_property = None
+_owned_properties = {}
 
 
 def _registered_type(cls):
@@ -380,12 +415,14 @@ def _registered_type(cls):
 
 
 def register():
-    global _owned_property, _UPDATER_REGISTERED
+    global _UPDATER_REGISTERED
     if _registered_classes:
         return
-    if hasattr(bpy.types.Object, PROPERTY_NAME) or any(_registered_type(cls) for cls in CLASSES):
+    if (any(hasattr(bpy.types.Object, name) for name in (PROPERTY_NAME, GROUP_PROPERTY_NAME))
+            or any(_registered_type(cls) for cls in CLASSES)):
         raise RuntimeError("Disable the older or duplicate Cloth Cache Manager before enabling this copy")
     try:
+        configure_preferences(_UPDATER)
         _UPDATER.register()
         _UPDATER_REGISTERED = True
         for cls in CLASSES:
@@ -398,22 +435,27 @@ def register():
         ))
         # Keep the original Python definition alive. RNA wrappers compare by
         # address, which Blender can reuse after another add-on replaces it.
-        _owned_property = bpy.types.Object.__dict__[PROPERTY_NAME]
+        _owned_properties[PROPERTY_NAME] = bpy.types.Object.__dict__[PROPERTY_NAME]
+        setattr(bpy.types.Object, GROUP_PROPERTY_NAME, PointerProperty(
+            name="Model",
+            description="Override automatic grouping with the model or rig this cage affects; clear to detect automatically",
+            type=bpy.types.Object, poll=model_override_poll,
+        ))
+        _owned_properties[GROUP_PROPERTY_NAME] = bpy.types.Object.__dict__[GROUP_PROPERTY_NAME]
     except Exception:
         unregister()
         raise
 
 
 def unregister():
-    global _owned_property, _UPDATER_REGISTERED
+    global _UPDATER_REGISTERED
     if _UPDATER_REGISTERED:
         _UPDATER.unregister()
         _UPDATER_REGISTERED = False
-    if _owned_property is not None:
-        current = bpy.types.Object.__dict__.get(PROPERTY_NAME)
-        if current is _owned_property:
-            delattr(bpy.types.Object, PROPERTY_NAME)
-        _owned_property = None
+    for name, definition in tuple(_owned_properties.items()):
+        if bpy.types.Object.__dict__.get(name) is definition:
+            delattr(bpy.types.Object, name)
+        _owned_properties.pop(name)
     for cls in reversed(_registered_classes):
         if _registered_type(cls) is cls:
             bpy.utils.unregister_class(cls)
