@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Camera Timeline Culler",
     "author": "OpenAI, Helices3D",
-    "version": (2, 0, 1),
+    "version": (2, 1, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Hide geometry outside every sampled camera view; restore it at any time",
@@ -18,6 +18,10 @@ from bpy.props import EnumProperty, FloatProperty, IntProperty, PointerProperty
 from mathutils import Vector
 
 from ._ui import section, setup_layout
+from ._updates import create_updater
+
+
+_UPDATER = create_updater(__package__, __file__)
 
 
 COLLECTION_NAME = "CAMERA CULLED | Outside View"
@@ -612,6 +616,7 @@ def register():
     if hasattr(bpy.types.Scene, "camera_cull_settings") or any(_registered_type(cls) for cls in CLASSES):
         raise RuntimeError("Camera Timeline Culler is already registered. Disable the older or duplicate copy first.")
     try:
+        _UPDATER.register()
         for cls in CLASSES:
             bpy.utils.register_class(cls)
             _registered_classes.append(cls)
@@ -624,6 +629,7 @@ def register():
 
 def unregister():
     global _owns_scene_property
+    _UPDATER.unregister()
     if (_owns_scene_property and hasattr(bpy.types.Scene, "camera_cull_settings")
             and _registered_type(CameraCullSettings) is CameraCullSettings):
         del bpy.types.Scene.camera_cull_settings

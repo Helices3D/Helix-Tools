@@ -49,6 +49,12 @@ PUBLIC_OPERATORS = (
     "cloth_manager.reset_bakes",
 )
 
+UPDATE_OPERATORS = tuple(
+    f"helix_updates.{action}_{name}"
+    for name in MODULE_NAMES
+    for action in ("check", "cancel")
+)
+
 PROPERTY_OWNERS = (
     bpy.types.Scene,
     bpy.types.Object,
@@ -67,15 +73,26 @@ def _properties():
 
 
 def _module_classes(module):
-    """Include every locally declared Blender class, regardless of tuple name."""
+    """Include tool classes and their separately owned updater preferences/actions."""
     bases = (bpy.types.Operator, bpy.types.Panel, bpy.types.PropertyGroup,
              bpy.types.UIList, bpy.types.AddonPreferences)
-    return tuple(
+    local = tuple(
         cls for cls in vars(module).values()
         if isinstance(cls, type)
         and cls.__module__ == module.__name__
         and issubclass(cls, bases)
     )
+    controller = getattr(module, "_UPDATER", None)
+    return tuple(dict.fromkeys((*local, *getattr(controller, "classes", ()))))
+
+
+def _assert_update_timers_stopped(test, module):
+    controller = module._UPDATER
+    for name in ("_startup_callback", "_poll_callback"):
+        callback = getattr(controller, name, None)
+        if callback is not None:
+            test.assertFalse(bpy.app.timers.is_registered(callback),
+                             f"Updater timer leaked: {module.__name__}.{name}")
 
 
 class StandaloneIntegrationTests(unittest.TestCase):
@@ -114,11 +131,25 @@ class StandaloneIntegrationTests(unittest.TestCase):
         self.assertEqual(bpy.app.version, (5, 2, 2))
 
     def test_public_operator_names_work_together(self):
-        for identifier in PUBLIC_OPERATORS:
+        for identifier in (*PUBLIC_OPERATORS, *UPDATE_OPERATORS):
             namespace, name = identifier.split(".", 1)
             operator = getattr(getattr(bpy.ops, namespace), name)
             with self.subTest(operator=identifier):
                 self.assertIsNotNone(operator.get_rna_type())
+
+    def test_each_standalone_has_independent_update_preferences_disabled_by_default(self):
+        identifiers = set()
+        for module in self.modules:
+            with self.subTest(addon=module.__name__):
+                controller = module._UPDATER
+                self.assertEqual(len(controller.classes), 3)
+                preferences = controller.classes[0]
+                self.assertTrue(issubclass(preferences, bpy.types.AddonPreferences))
+                self.assertEqual(preferences.bl_idname, module.__name__)
+                self.assertFalse(preferences.bl_rna.properties["auto_check"].default)
+                self.assertTrue(all(cls.is_registered for cls in controller.classes))
+                identifiers.update(cls.bl_idname for cls in controller.classes[1:])
+        self.assertEqual(identifiers, set(UPDATE_OPERATORS))
 
     def test_viewport_panels_share_a_clear_sidebar(self):
         for module in self.modules:
@@ -146,7 +177,7 @@ class StandaloneIntegrationTests(unittest.TestCase):
                     self.assertEqual(_properties(), self.baseline_properties)
                     for cls in self.classes:
                         self.assertFalse(cls.is_registered, cls.__name__)
-                    for identifier in PUBLIC_OPERATORS:
+                    for identifier in (*PUBLIC_OPERATORS, *UPDATE_OPERATORS):
                         namespace, name = identifier.split(".", 1)
                         operator = getattr(getattr(bpy.ops, namespace), name)
                         with self.assertRaises(KeyError, msg=identifier):
@@ -161,6 +192,7 @@ class StandaloneIntegrationTests(unittest.TestCase):
                                     f"Handler leaked after disabling: {name}",
                                 )
                     for module in self.modules:
+                        _assert_update_timers_stopped(self, module)
                         tick = getattr(module, "_tick", None)
                         if tick is not None:
                             self.assertFalse(bpy.app.timers.is_registered(tick))

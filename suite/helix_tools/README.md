@@ -6,6 +6,11 @@ Disable the standalone Helix Tools add-ons first. Install `helix_tools.zip` thro
 
 The suite reuses the standalone implementations and their existing operator IDs and saved scene settings. To switch back, disable the suite before enabling standalones.
 
+For updates, expand **Helix Tools** in **Preferences → Add-ons** and click
+**Check for Updates**. New published versions install automatically; save your
+work and restart Blender when prompted. **Check on Startup** is optional and off
+by default. See the [update guide](https://github.com/Helices3D/Helix-Tools/blob/main/docs/usage.md#updates).
+
 The generated `components.json` in the archive lists the included component names, versions, and matching standalone archive hashes. Component documentation is available in the repository's [add-ons folder](https://github.com/Helices3D/Helix-Tools/tree/main/addons). The archive includes each component's README and the repository's `AUTHORS.md` credits.
 
 Licensed under GPL-3.0-or-later; see `LICENSE`.

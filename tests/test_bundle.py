@@ -16,7 +16,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from build_releases import BUNDLE_ID, PACKAGES, build
 from check_release_install import enable_extension, installed_release_repository, release_archives
 from _hair_fixtures import evaluated_data, make_garment, make_hair, select_objects
-from test_integration import PROPERTY_OWNERS, PUBLIC_OPERATORS, _module_classes, _properties
+from test_integration import (PROPERTY_OWNERS, PUBLIC_OPERATORS, UPDATE_OPERATORS,
+                              _module_classes, _properties, _assert_update_timers_stopped)
+
+BUNDLE_UPDATE_OPERATORS = ("helix_updates.check_helix_tools", "helix_updates.cancel_helix_tools")
+
+
+def _bundle_classes(bundle):
+    return tuple(cls for module in (bundle, *bundle.modules) for cls in _module_classes(module))
 
 
 def _handlers():
@@ -43,7 +50,7 @@ class FullSuiteTests(unittest.TestCase):
             )
             cls.prefix = cls.repository.__enter__()
             cls.bundle = enable_extension(cls.prefix, BUNDLE_ID)
-            cls.classes = tuple(cls for module in cls.bundle.modules for cls in _module_classes(module))
+            cls.classes = _bundle_classes(cls.bundle)
             cls.standalones = tuple(importlib.import_module(name) for name in PACKAGES)
             addon_utils.disable(cls.bundle.__name__, default_set=True)
         except Exception:
@@ -102,7 +109,7 @@ class FullSuiteTests(unittest.TestCase):
         # Use its returned live module for subsequent register/cleanup checks.
         bundle = enable_extension(self.prefix, BUNDLE_ID)
         type(self).bundle = bundle
-        type(self).classes = tuple(cls for module in bundle.modules for cls in _module_classes(module))
+        type(self).classes = _bundle_classes(bundle)
         return bundle
 
     def assert_clean(self):
@@ -110,12 +117,13 @@ class FullSuiteTests(unittest.TestCase):
         self.assertEqual(_handlers(), self.before_handlers)
         for cls in self.classes:
             self.assertFalse(cls.is_registered, cls.__name__)
-        for module in self.bundle.modules:
+        for module in (self.bundle, *self.bundle.modules):
+            _assert_update_timers_stopped(self, module)
             for name in ("_tick", "_deferred_fps_migration"):
                 callback = getattr(module, name, None)
                 if callback is not None:
                     self.assertFalse(bpy.app.timers.is_registered(callback))
-        for identifier in PUBLIC_OPERATORS:
+        for identifier in (*PUBLIC_OPERATORS, *BUNDLE_UPDATE_OPERATORS):
             namespace, name = identifier.split(".", 1)
             with self.assertRaises(KeyError, msg=identifier):
                 getattr(getattr(bpy.ops, namespace), name).get_rna_type()
@@ -138,11 +146,18 @@ class FullSuiteTests(unittest.TestCase):
                 enabled = self.activate_bundle()
                 self.assertEqual(Path(enabled.__file__).resolve().parent, installed_root)
                 self.bundle.register()  # Idempotent when Blender reuses the loaded module.
+                self.assertEqual(len(self.bundle._UPDATER.classes), 3)
+                for component in self.bundle.modules:
+                    self.assertEqual(component._UPDATER.classes, (), component.__name__)
+                for identifier in UPDATE_OPERATORS:
+                    namespace, name = identifier.split(".", 1)
+                    with self.assertRaises(KeyError, msg=identifier):
+                        getattr(getattr(bpy.ops, namespace), name).get_rna_type()
                 for cls in self.classes:
                     self.assertTrue(cls.is_registered, cls.__name__)
                     if issubclass(cls, bpy.types.Panel):
                         self.assertEqual(cls.bl_category, "Helix Tools")
-                for identifier in PUBLIC_OPERATORS:
+                for identifier in (*PUBLIC_OPERATORS, *BUNDLE_UPDATE_OPERATORS):
                     namespace, name = identifier.split(".", 1)
                     self.assertIsNotNone(getattr(getattr(bpy.ops, namespace), name).get_rna_type())
                 addon_utils.disable(self.bundle.__name__, default_set=True)

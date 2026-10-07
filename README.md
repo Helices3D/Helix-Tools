@@ -26,6 +26,10 @@ disable the suite before enabling individual copies. Saved scene settings carry
 between the two installation choices. To build ZIPs from source, run
 `python scripts/build_releases.py`.
 
+To update, expand an enabled Helix extension in **Preferences → Add-ons** and
+click **Check for Updates**. New published versions are downloaded and installed
+automatically; restart Blender when prompted. See [update settings](docs/usage.md#updates).
+
 See [usage and migration](docs/usage.md) and [development checks](docs/development.md).
 Hair Contact Culler has a [quickstart](addons/hair_contact_culler/README.md#quickstart)
 and [full workflow guide](addons/hair_contact_culler/WORKFLOW.md).

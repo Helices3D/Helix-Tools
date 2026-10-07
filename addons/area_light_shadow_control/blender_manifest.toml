@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "area_light_shadow_control"
-version = "1.3.2"
+version = "1.4.0"
 name = "Light Size and Shadow Control"
 tagline = "Resize light sources and enable Eevee shadows in one click"
 maintainer = "Helices3D"
@@ -11,4 +11,5 @@ blender_version_max = "5.2.3"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
-files = "Save, back up, and restore Blender's startup file"
+files = "Back up startup files and download/install verified updates"
+network = "Check GitHub releases and install verified Helix tool updates"

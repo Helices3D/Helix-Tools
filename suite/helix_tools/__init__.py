@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Helix Tools",
     "author": "Helices3D",
-    "version": (1, 0, 1),
+    "version": (1, 1, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Install all six Helix Tools add-ons together",
@@ -12,6 +12,9 @@ bl_info = {
 }
 
 import bpy
+from ._updates import create_updater
+
+_UPDATER = create_updater(__package__, __file__)
 
 from . import (
     jump_by_time,
@@ -53,7 +56,7 @@ REGISTER_ORDER = (
     hair_contact_culler,
 )
 
-CLASSES = ()  # The wrapper adds no operators, panels, or scene properties.
+CLASSES = ()  # Update preferences/operators are tracked separately by _UPDATER.
 _registered_modules = []
 _registered = False
 
@@ -119,12 +122,14 @@ def register():
             "Helix Tools has unfinished cleanup. Disable it again before enabling this extension."
         )
     _preflight_registration()
+    failed_name = "Update Controls"
     try:
+        _UPDATER.register()
         for module in REGISTER_ORDER:
+            failed_name = module.bl_info["name"]
             module.register()
             _registered_modules.append(module)
     except Exception as error:
-        failed_name = module.bl_info["name"]
         try:
             unregister()
         except Exception as cleanup_error:
@@ -143,6 +148,10 @@ def unregister():
     global _registered
     _registered = False
     failures = []
+    try:
+        _UPDATER.unregister()
+    except Exception as error:
+        failures.append(f"Update Controls: {error}")
     for module in reversed(tuple(_registered_modules)):
         try:
             module.unregister()

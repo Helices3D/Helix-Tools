@@ -19,12 +19,47 @@ Click a section's disclosure header to collapse or expand its boxed controls.
 Each section folds independently; collapsing it only hides its controls and
 does not change the tool's settings or results.
 
-Save a backup of an existing `.blend` before upgrading. Disable the previous copy
-of each add-on before enabling its replacement: original operator names are
-preserved so existing shortcuts and scripts continue to work. Do not run both
-copies simultaneously. Existing scene settings and light baselines are retained;
+Save a backup of an existing `.blend` before upgrading. When installing a
+replacement ZIP manually, disable the previous copy before enabling its
+replacement: original operator names are preserved so existing shortcuts and
+scripts continue to work. Do not run both copies simultaneously. Existing scene
+settings and light baselines are retained;
 upgrading does not attempt to guess which ordinary empties were created by the
 old Smart Empty version.
+
+## Updates
+
+In **Preferences → Add-ons**, expand an enabled Helix extension and click
+**Check for Updates**. The check covers all enabled Helix extensions: the full
+suite updates as one package, while individual installations update their enabled
+tools in place. It does not install extra standalone copies alongside the suite
+or change your installation choice.
+
+Newer versions are downloaded from the latest public, stable
+[GitHub release](https://github.com/Helices3D/Helix-Tools/releases/latest), verified,
+and installed automatically using Blender's extension installer. Source changes
+on `main`, draft releases, and prereleases are not update targets. An extension
+with an equal or newer installed version is left alone. Enable Blender's
+**Allow Online Access** preference to use the check.
+
+The optional **Check on Startup** setting is off by default. Enable it to check
+and install updates once per Blender session when Blender opens. Installation
+waits until playback and rendering stop. The check runs outside Blender's main
+process so downloading does not block the interface.
+
+Older releases without **Check for Updates** need one manual ZIP upgrade before
+these controls become available.
+
+After installation, a **Restart Blender** notice appears. Save any open work and
+restart Blender yourself to load the new code; the updater does not close Blender
+or restart it automatically. Enabled state and saved tool settings are preserved.
+Downloads are temporary and cleaned up when the check or installation finishes.
+Backup ZIPs of replaced packages remain in Blender's extension user storage.
+If installation fails, the updater automatically reinstalls the previous package
+using Blender's extension installer. If that recovery also fails, the error report
+includes the exact backup ZIP path for manual recovery through **Install from
+Disk**. Updates do not overwrite your startup scene or save your current
+`.blend` file.
 
 ## Jump By Time
 

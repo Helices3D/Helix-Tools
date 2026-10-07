@@ -8,7 +8,7 @@ from the previous slider result. No handlers run when opening a project.
 bl_info = {
     "name": "Light Size and Shadow Control",
     "author": "Codex, Helices3D",
-    "version": (1, 3, 2),
+    "version": (1, 4, 0),
     "blender": (5, 2, 2),
     "location": "3D Viewport > Sidebar > Helix Tools",
     "description": "Resize light sources and enable Eevee shadows in one click",
@@ -31,6 +31,10 @@ from bpy.props import (
 )
 from bpy.types import Operator, Panel, PropertyGroup, UIList
 from ._ui import section, setup_layout
+from ._updates import create_updater
+
+_UPDATER = create_updater(__package__, __file__)
+_UPDATER_REGISTERED = False
 
 BASELINE_KEY = "_area_light_shadow_control_baseline_v1"
 SCENE_PROPERTY = "area_light_shadow_control"
@@ -1293,7 +1297,7 @@ CLASSES = (
 
 def register():
     # A second register() call is harmless. No sizing occurs at registration.
-    global _SCENE_PROPERTY_OWNED
+    global _SCENE_PROPERTY_OWNED, _UPDATER_REGISTERED
     if _SCENE_PROPERTY_OWNED:
         return
     if hasattr(bpy.types.Scene, SCENE_PROPERTY):
@@ -1319,6 +1323,8 @@ def register():
             )
     registered = []
     try:
+        _UPDATER.register()
+        _UPDATER_REGISTERED = True
         for cls in CLASSES:
             bpy.utils.register_class(cls)
             registered.append(cls)
@@ -1326,15 +1332,23 @@ def register():
         _SCENE_PROPERTY_OWNED = True
         _REGISTERED_CLASSES.extend(registered)
     except Exception:
-        for cls in reversed(registered):
-            bpy.utils.unregister_class(cls)
+        try:
+            for cls in reversed(registered):
+                bpy.utils.unregister_class(cls)
+        finally:
+            if _UPDATER_REGISTERED:
+                _UPDATER.unregister()
+                _UPDATER_REGISTERED = False
         raise
 
 
 def unregister():
     # Deliberately keep emitter dimensions and saved ID-property baselines.
     # Removing an add-on should not unexpectedly alter a user's lighting.
-    global _SCENE_PROPERTY_OWNED
+    global _SCENE_PROPERTY_OWNED, _UPDATER_REGISTERED
+    if _UPDATER_REGISTERED:
+        _UPDATER.unregister()
+        _UPDATER_REGISTERED = False
     if _SCENE_PROPERTY_OWNED and hasattr(bpy.types.Scene, SCENE_PROPERTY):
         delattr(bpy.types.Scene, SCENE_PROPERTY)
     _SCENE_PROPERTY_OWNED = False

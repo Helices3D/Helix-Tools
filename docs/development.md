@@ -7,6 +7,12 @@ The optional `suite/helix_tools/` wrapper packages the same six tools into one
 extension. Both installation choices preserve the tools' operator IDs and saved
 data keys. Disable one choice before enabling the other.
 
+Update preferences use the shared implementation in `shared/helix_updates/`.
+Each standalone archive includes its own copy; the suite has one updater for its
+root extension. Run `python scripts/sync_updaters.py` after editing the shared
+source to refresh the tracked `_updates/` copies in each add-on and the suite.
+The builder rejects copies that differ from the shared source.
+
 ## Run the checks
 
 Use Python 3.13 and Blender Foundation's exact `bpy==5.2.2` package:
@@ -89,6 +95,12 @@ Sidebar draw checks use registered scene data to exercise open and collapsed
 sections, independent headers, and unchanged tool settings.
 The official Blender validator checks the distributable manifests and layouts.
 
+Updater checks cover release/version selection, package identities, SHA-256
+verification, Blender compatibility, and installation lifecycle. Network work
+runs in a worker subprocess that does not import or access `bpy`; Blender API
+calls stay on the main thread. The updater respects Blender's online-access
+preference and uses the native extension installer after verified downloads.
+
 Headless checks do not establish interactive panel appearance, keyboard workflows,
 Undo/Redo behavior, or rendered shadow quality. Before a public release, open all
 the sidebar panels in Blender 5.2.2 LTS, exercise their controls and Undo/Redo in
@@ -130,3 +142,10 @@ Ordinary pushes to `main` build and check artifacts without publishing a release
 Publish the tag after the corresponding `main` checks pass, then verify the
 published asset links and hashes. Updating source on `main` alone does not change
 the public downloads.
+
+The built-in updater reads the latest public stable release and its
+`releases.json` metadata. Keep release metadata, archive hashes, manifests, and
+stable ZIP aliases consistent; unreleased changes on `main` do not reach users
+through update checks. A suite update replaces the root suite extension rather
+than installing its embedded components separately. Preserve the root manifest
+IDs so installed extensions can be updated in their existing repositories.

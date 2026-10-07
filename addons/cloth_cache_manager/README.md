@@ -13,3 +13,7 @@ Extensions → Install from Disk**. Disable older copies first.
 See [usage and migration](../../docs/usage.md#cloth-cache-manager). Originally
 supplied as `cloth_cage_manager.py`, credited to Gemini and Helices3D; maintained
 as a standalone extension under GPL-3.0-or-later.
+
+For automatic installation of newer published versions, use **Preferences →
+Add-ons → Check for Updates** in an enabled Helix extension, then restart Blender
+when prompted. See the [update guide](https://github.com/Helices3D/Helix-Tools/blob/main/docs/usage.md#updates).

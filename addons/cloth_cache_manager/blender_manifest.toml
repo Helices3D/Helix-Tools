@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "cloth_cache_manager"
-version = "1.2.2"
+version = "1.3.0"
 name = "Cloth Cache Manager"
 tagline = "Promote and reset cloth caches across checked objects"
 maintainer = "Helices3D"
@@ -11,4 +11,5 @@ blender_version_max = "5.2.3"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
-files = "Manage Blender cloth simulation bake cache files"
+files = "Manage cloth cache files, update packages, and version backups"
+network = "Check GitHub releases and install verified Helix tool updates"

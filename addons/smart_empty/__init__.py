@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Smart Empty",
     "author": "Gemini, Helices3D",
-    "version": (2, 0, 1),
+    "version": (2, 1, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools > Smart Empty",
     "description": "Create independent object or bone anchors and manage them per rig",
@@ -25,6 +25,10 @@ from bpy.props import (
 from mathutils import Matrix
 
 from ._ui import section, setup_layout
+from ._updates import create_updater
+
+
+_UPDATER = create_updater(__package__, __file__)
 
 
 _BONE_ID_KEY = "_helix_smart_empty_bone_id"
@@ -536,6 +540,7 @@ def register():
         if hasattr(owner, name):
             raise RuntimeError("Disable the other Smart Empty copy before enabling Helix Smart Empty")
     try:
+        _UPDATER.register()
         for cls in classes:
             bpy.utils.register_class(cls)
             _registered_classes.append(cls)
@@ -549,6 +554,7 @@ def register():
 
 
 def unregister():
+    _UPDATER.unregister()
     for owner, name in reversed(_registered_properties):
         if hasattr(owner, name):
             delattr(owner, name)

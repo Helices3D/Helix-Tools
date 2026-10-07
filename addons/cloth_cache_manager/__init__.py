@@ -7,7 +7,7 @@ Adapted from Cloth Cache Manager 1.1, by Gemini and Helices3D.
 bl_info = {
     "name": "Cloth Cache Manager",
     "author": "Gemini + Executive Produced by Helices3D",
-    "version": (1, 2, 2),
+    "version": (1, 3, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Manage cloth-cage caches for reliable timeline navigation",
@@ -21,6 +21,10 @@ import bpy
 from bpy.props import BoolProperty
 
 from ._ui import section, setup_layout
+from ._updates import create_updater
+
+_UPDATER = create_updater(__package__, __file__)
+_UPDATER_REGISTERED = False
 
 
 PROPERTY_NAME = "cloth_tool_selected"
@@ -323,12 +327,14 @@ def _registered_type(cls):
 
 
 def register():
-    global _owned_property
+    global _owned_property, _UPDATER_REGISTERED
     if _registered_classes:
         return
     if hasattr(bpy.types.Object, PROPERTY_NAME) or any(_registered_type(cls) for cls in CLASSES):
         raise RuntimeError("Disable the older or duplicate Cloth Cache Manager before enabling this copy")
     try:
+        _UPDATER.register()
+        _UPDATER_REGISTERED = True
         for cls in CLASSES:
             bpy.utils.register_class(cls)
             _registered_classes.append(cls)
@@ -346,7 +352,10 @@ def register():
 
 
 def unregister():
-    global _owned_property
+    global _owned_property, _UPDATER_REGISTERED
+    if _UPDATER_REGISTERED:
+        _UPDATER.unregister()
+        _UPDATER_REGISTERED = False
     if _owned_property is not None:
         current = bpy.types.Object.__dict__.get(PROPERTY_NAME)
         if current is _owned_property:

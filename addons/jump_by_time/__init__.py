@@ -10,12 +10,16 @@ from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
 
 from ._ui import section, setup_layout
+from ._updates import create_updater
+
+
+_UPDATER = create_updater(__package__, __file__)
 
 
 bl_info = {
     "name": "Jump By Time",
     "author": "ChatGPT, Helices3D",
-    "version": (2, 0, 2),
+    "version": (2, 1, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Map external dialogue timestamps to scene frames with an adjustable start offset",
@@ -322,6 +326,7 @@ def register():
     # Check before changing Scene schemas, preserving the enabled older copy.
     _preflight_registration()
     try:
+        _UPDATER.register()
         _owns_properties = True
         _init_props()
         for cls in classes:
@@ -338,6 +343,7 @@ def register():
 
 def unregister():
     global _owns_properties, _registered
+    _UPDATER.unregister()
     if bpy.app.timers.is_registered(_deferred_fps_migration):
         bpy.app.timers.unregister(_deferred_fps_migration)
     if _migrate_fps_override in bpy.app.handlers.load_post:

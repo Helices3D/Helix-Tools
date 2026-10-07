@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Compiled root-to-first-contact hair trims. No scene Text or private assets."""
-bl_info = {'name':'Hair Contact Culler', 'author':'Helices3D', 'version':(0, 2, 2),
+bl_info = {'name':'Hair Contact Culler', 'author':'Helices3D', 'version':(0, 3, 0),
            'blender':(5,2,2), 'location':'View3D > Sidebar > Helix Tools',
            'description':'Keep hair from its root to clothing contact; remove the remaining tip',
            'category':'Object'}
@@ -13,6 +13,10 @@ import hashlib, json, math, time, uuid
 from . import _nodes
 from ._ui import HelixPanel, section, wrapped_label
 from .contacts import MeshContacts
+from ._updates import create_updater
+
+_UPDATER = create_updater(__package__, __file__)
+_UPDATER_REGISTERED = False
 
 MAX_ITEMS=31
 CACHE_SCHEMA=2
@@ -632,7 +636,7 @@ HANDLERS=((bpy.app.handlers.depsgraph_update_post,_depsgraph),(bpy.app.handlers.
 
 
 def register():
-    global _registered
+    global _registered, _UPDATER_REGISTERED
     if _registered: return
     if hasattr(bpy.types.Object,'helix_hair_cull'): raise RuntimeError('Hair culling settings already registered by another module')
     for cls in CLASSES:
@@ -644,6 +648,8 @@ def register():
         if existing: raise RuntimeError('Hair culling class or operator ID already registered: '+cls.__name__)
     done=[]
     try:
+        _UPDATER.register()
+        _UPDATER_REGISTERED=True
         for cls in CLASSES: bpy.utils.register_class(cls); done.append(cls)
         bpy.types.Object.helix_hair_cull=PointerProperty(type=HC_Settings)
         for handler,fn in HANDLERS:
@@ -652,16 +658,24 @@ def register():
         # addon_utils uses restricted data/context during registration. Timer/load handlers restore later.
         _registered=True
     except Exception:
-        if hasattr(bpy.types.Object,'helix_hair_cull'): del bpy.types.Object.helix_hair_cull
-        for handler,fn in HANDLERS:
-            if fn in handler: handler.remove(fn)
-        if bpy.app.timers.is_registered(_tick): bpy.app.timers.unregister(_tick)
-        for cls in reversed(done): bpy.utils.unregister_class(cls)
+        try:
+            if hasattr(bpy.types.Object,'helix_hair_cull'): del bpy.types.Object.helix_hair_cull
+            for handler,fn in HANDLERS:
+                if fn in handler: handler.remove(fn)
+            if bpy.app.timers.is_registered(_tick): bpy.app.timers.unregister(_tick)
+            for cls in reversed(done): bpy.utils.unregister_class(cls)
+        finally:
+            if _UPDATER_REGISTERED:
+                _UPDATER.unregister()
+                _UPDATER_REGISTERED=False
         raise
 
 
 def unregister():
-    global _registered
+    global _registered, _UPDATER_REGISTERED
+    if _UPDATER_REGISTERED:
+        _UPDATER.unregister()
+        _UPDATER_REGISTERED=False
     if not _registered: return
     if bpy.app.timers.is_registered(_tick): bpy.app.timers.unregister(_tick)
     for handler,fn in HANDLERS:

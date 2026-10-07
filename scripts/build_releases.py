@@ -57,6 +57,8 @@ def _write_archive(output, files):
 
 
 def build(destination):
+    from sync_updaters import check_mirrors
+    check_mirrors()
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     releases = []

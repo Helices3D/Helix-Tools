@@ -1,6 +1,6 @@
 # Hair Contact Culler
 
-**0.2.1 · Blender 5.2.2 LTS · GPL-3.0-or-later**
+**Blender 5.2.2 LTS · GPL-3.0-or-later**
 
 Trim native hair where it touches clothing. Each strand keeps its root and
 original bends up to its first radius-aware garment contact; everything from
@@ -8,11 +8,15 @@ that contact through the tip is removed. The authored groom stays intact.
 
 ## Install
 
-Build the repository's extension archives with `python scripts/build_releases.py`
-(Python 3.13), or download them from a successful GitHub Actions run. In Blender,
-choose **Preferences → Get Extensions → Install from Disk**, select
-`hair_contact_culler-0.2.1.zip`, and enable it. Disable an older copy first.
+Download [the current extension ZIP](https://github.com/Helices3D/Helix-Tools/releases/latest/download/hair_contact_culler.zip),
+or build the repository's extension archives with `python scripts/build_releases.py`
+(Python 3.13). In Blender, choose **Preferences → Get Extensions → Install from
+Disk**, select the Hair Contact Culler ZIP, and enable it. Disable an older copy first.
 This addon works independently of the other Helix Tools extensions.
+
+For automatic installation of newer published versions, use **Preferences →
+Add-ons → Check for Updates** in an enabled Helix extension, then restart Blender
+when prompted. See the [update guide](https://github.com/Helices3D/Helix-Tools/blob/main/docs/usage.md#updates).
 
 ## Quickstart
 

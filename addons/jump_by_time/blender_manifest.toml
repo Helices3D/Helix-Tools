@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "jump_by_time"
-version = "2.0.2"
+version = "2.1.0"
 name = "Jump By Time"
 tagline = "Map external timestamps to Blender timeline frames"
 maintainer = "Helices3D"
@@ -9,3 +9,7 @@ tags = ["Animation"]
 blender_version_min = "5.2.2"
 blender_version_max = "5.2.3"
 license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+network = "Check GitHub releases and install verified Helix tool updates"
+files = "Store update caches and backups for Helix tool updates"
