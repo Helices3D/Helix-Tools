@@ -80,7 +80,7 @@ def prepare(distribution, destination, tag=None):
     components = "\n".join(f"- {spec['name']}: {spec['version']}" for spec in specs if spec["id"] != BUNDLE_ID)
     notes = (
         f"Helix Tools {suite['version']} for **Blender 5.2.2 LTS**.\n\n"
-        "Install **helix_tools.zip** from Preferences → Get Extensions → Install from Disk for all six tools. "
+        "Install **helix_tools.zip** from Preferences → Get Extensions → Install from Disk for all seven tools. "
         "Disable their standalone copies before enabling the suite. The suite and standalone copies register "
         "the same tools, so choose one installation method for each tool.\n\n"
         "Each tool remains available as its own independent extension. Stable `<tool_id>.zip` downloads "

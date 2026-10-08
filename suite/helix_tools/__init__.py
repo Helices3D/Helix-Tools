@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Enable the current six Helix Tools components as one Blender extension."""
+"""Enable the current seven Helix Tools components as one Blender extension."""
 
 bl_info = {
     "name": "Helix Tools",
     "author": "Helices3D",
-    "version": (1, 3, 0),
+    "version": (1, 4, 0),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
-    "description": "Install all six Helix Tools add-ons together",
+    "description": "Install all seven Helix Tools add-ons together",
     "category": "Object",
 }
 
@@ -23,6 +23,7 @@ from . import (
     area_light_shadow_control,
     hair_contact_culler,
     cloth_cache_manager,
+    texture_resolution,
 )
 
 
@@ -34,6 +35,7 @@ MODULE_NAMES = (
     "area_light_shadow_control",
     "hair_contact_culler",
     "cloth_cache_manager",
+    "texture_resolution",
 )
 modules = (
     jump_by_time,
@@ -42,6 +44,7 @@ modules = (
     area_light_shadow_control,
     hair_contact_culler,
     cloth_cache_manager,
+    texture_resolution,
 )
 
 # Hair restores scene nodes when disabled, so it must be registered last.
@@ -53,6 +56,7 @@ REGISTER_ORDER = (
     camera_timeline_culler,
     area_light_shadow_control,
     cloth_cache_manager,
+    texture_resolution,
     hair_contact_culler,
 )
 
@@ -90,6 +94,8 @@ def _properties(module):
         return ((bpy.types.Scene, area_light_shadow_control.SCENE_PROPERTY),)
     if module is hair_contact_culler:
         return ((bpy.types.Object, "helix_hair_cull"),)
+    if module is texture_resolution:
+        return ((bpy.types.Scene, texture_resolution.SCENE_PROPERTY),)
     if module is cloth_cache_manager:
         return tuple((bpy.types.Object, name) for name in (
             cloth_cache_manager.PROPERTY_NAME, cloth_cache_manager.GROUP_PROPERTY_NAME,

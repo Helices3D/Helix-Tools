@@ -8,7 +8,7 @@ from the previous slider result. No handlers run when opening a project.
 bl_info = {
     "name": "Light Size and Shadow Control",
     "author": "Codex, Helices3D",
-    "version": (1, 4, 0),
+    "version": (1, 4, 1),
     "blender": (5, 2, 2),
     "location": "3D Viewport > Sidebar > Helix Tools",
     "description": "Resize light sources and enable Eevee shadows in one click",

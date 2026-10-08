@@ -7,7 +7,7 @@ Adapted from Cloth Cache Manager 1.1, by Gemini and Helices3D.
 bl_info = {
     "name": "Cloth Cache Manager",
     "author": "Gemini + Executive Produced by Helices3D",
-    "version": (1, 5, 0),
+    "version": (1, 5, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Manage cloth-cage caches for reliable timeline navigation",

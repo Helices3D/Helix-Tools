@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Smart Empty",
     "author": "Gemini, Helices3D",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools > Smart Empty",
     "description": "Create independent object or bone anchors and manage them per rig",

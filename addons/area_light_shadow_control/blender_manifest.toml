@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "area_light_shadow_control"
-version = "1.4.0"
+version = "1.4.1"
 name = "Light Size and Shadow Control"
 tagline = "Resize light sources and enable Eevee shadows in one click"
 maintainer = "Helices3D"

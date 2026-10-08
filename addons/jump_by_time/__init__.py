@@ -19,7 +19,7 @@ _UPDATER = create_updater(__package__, __file__)
 bl_info = {
     "name": "Jump By Time",
     "author": "ChatGPT, Helices3D",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Map external dialogue timestamps to scene frames with an adjustable start offset",

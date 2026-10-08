@@ -19,3 +19,6 @@ Hair Contact Culler is a new Helices3D extension written with Codex assistance,
 added after user verification and publication approval on September 30, 2026.
 Its [package provenance](addons/hair_contact_culler/PROVENANCE.md) records the
 implementation origin separately from the supplied add-ons above.
+
+Texture Resolution is a new Helices3D extension written with Codex assistance
+for this repository. It was not part of the supplied source bundle.

@@ -1,8 +1,8 @@
 schema_version = "1.0.0"
 id = "helix_tools"
-version = "1.3.0"
+version = "1.4.0"
 name = "Helix Tools"
-tagline = "Install all six Helix Tools add-ons together"
+tagline = "Install all seven Helix Tools add-ons together"
 maintainer = "Helices3D"
 type = "add-on"
 tags = ["Animation", "Rigging", "Physics"]
@@ -11,5 +11,5 @@ blender_version_max = "5.2.3"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
-files = "Manage tool update backups, startup files and cloth caches"
+files = "Save textures, startup backups, cloth caches and updates"
 network = "Check GitHub releases and install verified Helix tool updates"

@@ -1,15 +1,15 @@
 schema_version = "1.0.0"
-id = "camera_timeline_culler"
-version = "2.2.1"
-name = "Camera Timeline Culler"
-tagline = "Hide geometry outside sampled animated camera views"
+id = "texture_resolution"
+version = "1.0.0"
+name = "Texture Resolution"
+tagline = "Switch scene textures between originals and half resolution"
 maintainer = "Helices3D"
 type = "add-on"
-tags = ["Scene"]
+tags = ["Material", "Render"]
 blender_version_min = "5.2.2"
 blender_version_max = "5.2.3"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
+files = "Save half-resolution texture files and verified update backups"
 network = "Check GitHub releases and install verified Helix tool updates"
-files = "Store update caches and backups for Helix tool updates"

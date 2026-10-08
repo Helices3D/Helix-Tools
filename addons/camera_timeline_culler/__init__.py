@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Camera Timeline Culler",
     "author": "OpenAI, Helices3D",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (5, 2, 2),
     "location": "3D View > Sidebar > Helix Tools",
     "description": "Hide geometry outside every sampled camera view; restore it at any time",

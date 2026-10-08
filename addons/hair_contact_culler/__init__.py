@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Compiled root-to-first-contact hair trims. No scene Text or private assets."""
-bl_info = {'name':'Hair Contact Culler', 'author':'Helices3D', 'version':(0, 4, 0),
+bl_info = {'name':'Hair Contact Culler', 'author':'Helices3D', 'version':(0, 4, 1),
            'blender':(5,2,2), 'location':'View3D > Sidebar > Helix Tools',
            'description':'Keep hair from its root to clothing contact; remove the remaining tip',
            'category':'Object'}

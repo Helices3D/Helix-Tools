@@ -21,6 +21,7 @@ MODULE_NAMES = (
     "area_light_shadow_control",
     "hair_contact_culler",
     "cloth_cache_manager",
+    "texture_resolution",
 )
 
 # Preserve existing operator names and verify the public APIs added to the suite.
@@ -47,6 +48,8 @@ PUBLIC_OPERATORS = (
     "helix.hair_cull_help",
     "cloth_manager.bake_from_cache",
     "cloth_manager.reset_bakes",
+    "helix_textures.setup",
+    "helix_textures.switch_resolution",
 )
 
 UPDATE_OPERATORS = tuple(
@@ -214,6 +217,8 @@ class StandaloneIntegrationTests(unittest.TestCase):
         scene.jbt_use_scene_fps = True
         scene.jbt_fps_override = 29.97
         scene.jbt_timestamp = "00:02:03.456"
+        scene.helix_texture_resolution.threshold = 8192
+        scene.helix_texture_resolution.include_shared = True
         scene.helix_smart_empty_settings.empty_size = 0.75
         scene.helix_smart_empty_settings.use_local_orientation = False
         scene.camera_cull_settings.tolerance = 7.5
@@ -264,6 +269,8 @@ class StandaloneIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="helix-integration-") as directory:
             path = str(Path(directory) / "all-addons.blend")
             self.assertEqual(bpy.ops.wm.save_as_mainfile(filepath=path), {"FINISHED"})
+            scene.helix_texture_resolution.threshold = 2048
+            scene.helix_texture_resolution.include_shared = False
             scene.jbt_offset = -99
             scene.helix_smart_empty_settings.empty_size = 2.0
             scene.camera_cull_settings.tolerance = 99.0
@@ -276,6 +283,8 @@ class StandaloneIntegrationTests(unittest.TestCase):
             self.assertEqual(bpy.ops.wm.open_mainfile(filepath=path), {"FINISHED"})
 
         scene = bpy.context.scene
+        self.assertEqual(scene.helix_texture_resolution.threshold, 8192)
+        self.assertTrue(scene.helix_texture_resolution.include_shared)
         self.assertEqual(scene.jbt_offset, 17)
         self.assertEqual(scene.jbt_seconds, 2)
         self.assertEqual(scene.jbt_frames, 5)

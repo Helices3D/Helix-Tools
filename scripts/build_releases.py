@@ -10,12 +10,12 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("jump_by_time", "smart_empty", "camera_timeline_culler", "area_light_shadow_control",
-            "hair_contact_culler", "cloth_cache_manager")
+            "hair_contact_culler", "cloth_cache_manager", "texture_resolution")
 BUNDLE_ID = "helix_tools"
 
 
 def release_specs():
-    """Return the six standalone releases followed by the optional full suite."""
+    """Return the seven standalone releases followed by the optional full suite."""
     releases = []
     for name in (*PACKAGES, BUNDLE_ID):
         kind = "suite" if name == BUNDLE_ID else "standalone"

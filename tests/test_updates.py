@@ -519,9 +519,11 @@ class NativeUpdaterInstallationTests(unittest.TestCase):
         self.fail("Offline update fixture did not finish")
 
     def test_native_batch_replaces_existing_repositories_preserves_scene_preferences_and_backups(self):
-        ids = ("jump_by_time", "smart_empty", "area_light_shadow_control")
+        ids = ("jump_by_time", "smart_empty", "area_light_shadow_control", "texture_resolution")
         with self.installed(ids) as (prefix, modules):
             scene = bpy.context.scene
+            scene.helix_texture_resolution.threshold = 8192
+            scene.helix_texture_resolution.include_shared = True
             scene.jbt_offset = 145
             scene.jbt_fps_override = 29.97
             scene.helix_smart_empty_settings.empty_size = 0.75
@@ -549,6 +551,8 @@ class NativeUpdaterInstallationTests(unittest.TestCase):
             self.assertEqual(job["installed"][-1], f"{prefix}.jump_by_time")
             self.assertEqual(set(job["installed"]), {f"{prefix}.{package_id}" for package_id in ids})
             self.assertEqual(job["errors"], [])
+            self.assertEqual(scene.helix_texture_resolution.threshold, 8192)
+            self.assertTrue(scene.helix_texture_resolution.include_shared)
             self.assertEqual(scene.jbt_offset, 145)
             self.assertAlmostEqual(scene.jbt_fps_override, 29.97, places=4)
             self.assertAlmostEqual(scene.helix_smart_empty_settings.empty_size, 0.75)

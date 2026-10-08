@@ -1,7 +1,7 @@
 # Usage and migration
 
 Download the [complete Helix Tools suite](https://github.com/Helices3D/Helix-Tools/releases/latest/download/helix_tools.zip)
-to install all six tools once, or choose individual ZIPs from the
+to install all seven tools once, or choose individual ZIPs from the
 [README's tool list](../README.md). Install your chosen ZIPs through
 **Preferences → Get Extensions → Install from Disk** in **Blender 5.2.2 LTS**,
 then enable the installed extensions. The complete suite is one extension;
@@ -300,3 +300,55 @@ Disable the older `cloth_cage_manager.py` copy before installing this extension.
 The **Cloth Cache Manager** title, original operator IDs, and
 `cloth_tool_selected` checkboxes are retained; the
 panel moves from **Cloth Tools** into the shared **Helix Tools** tab.
+
+## Texture Resolution
+
+Use **Helix Tools → Texture Resolution** to make smaller alternatives for large
+scene textures while retaining their originals. The default **Minimum Size** is
+4000 px. An image qualifies when either dimension reaches that value: 4096×2048
+qualifies just as 4096×4096 does. Half resolution divides both dimensions by two
+(rounded down, with a minimum of one pixel), so 4096×4096 becomes 2048×2048 and
+8192×8192 becomes 4096×4096. Aspect ratio is retained apart from rounding odd
+pixel dimensions.
+
+Choose the threshold and click **Setup and Run**. The tool locates eligible
+images referenced by the current scene, writes independent smaller image files,
+records each original/alternative pair, and switches its references to the
+alternatives. Run setup again to include newly added eligible images; existing
+pairs are reused; edited source pixels regenerate their alternative. During
+setup, **Esc** stops after completed images and keeps their alternatives. The
+tracked list shows each image and its actual size pair.
+Use **Original** or **Half Resolution** to switch all tracked scene references
+together.
+Original files and original image pixels are not resized or overwritten.
+
+The scan includes material and world nodes, nested node groups, geometry-node
+image inputs, legacy image textures, image empties, camera backgrounds, and
+compositing images. It includes hidden objects and resources used by collection
+instances. It does not process unrelated images merely stored in the `.blend`.
+Shared references that also affect another scene are skipped by default;
+**Include Shared Resources** opts into changing those references in every scene
+that uses them. Linked/read-only references are skipped, as are UDIMs, movies, image
+sequences, multiview images, render results, and missing image pixels.
+
+Tracking and settings are saved in the `.blend` and survive switching between
+standalone and suite installs. Save or pack generated or unsaved painted originals
+before closing Blender, just as with other Blender image edits. Keep the generated
+image files with the project; the tracked alternatives are external assets. The output folder can be changed
+before setup. By default, alternatives go into `helix_texture_variants/` beside
+the saved project, or Blender’s user data directory when the project is unsaved.
+The tool does not delete old generated files. If you paint a smaller copy and
+later refresh its pair, that edited image is retained with a fake user; save or
+pack those image edits separately. Replacing a tracked reference with
+an unrelated image is respected by subsequent switches.
+
+Memory figures are estimates for the tracked image pixels, not live RAM or VRAM
+measurements. RAM estimates use decoded channel data; VRAM estimates use
+uncompressed RGBA8, RGBA16F, or RGBA32F data with a complete mip chain. Half width
+and half height use approximately one quarter of the pixel storage, a roughly 75% reduction. Actual memory depends on GPU texture
+formats, mipmaps, Blender's image cache, and which images are loaded. Retaining
+originals allows instant restoration, but Blender may keep both image buffers
+in RAM; switching resolution does not promise an immediate drop in the operating
+system's reported memory use. Downscaled images use PNG for byte images and
+full-precision OpenEXR for floating-point images; file compression size is not a
+measurement of texture memory.

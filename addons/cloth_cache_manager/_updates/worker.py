@@ -26,7 +26,7 @@ import zlib
 
 PACKAGE_IDS = frozenset((
     "jump_by_time", "smart_empty", "camera_timeline_culler",
-    "area_light_shadow_control", "hair_contact_culler", "cloth_cache_manager",
+    "area_light_shadow_control", "hair_contact_culler", "cloth_cache_manager", "texture_resolution",
     "helix_tools",
 ))
 REPOSITORY = "Helices3D/Helix-Tools"

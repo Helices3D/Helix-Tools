@@ -2,7 +2,7 @@
 
 **Note:** These tools are mostly vibecoded, so you may encounter minor issues.
 
-Six tools by Helices3D for **Blender 5.2.2 LTS**, available together or individually.
+Seven tools by Helices3D for **Blender 5.2.2 LTS**, available together or individually.
 All panels share the **Helix Tools** tab in the 3D Viewport sidebar (`N`).
 
 **[Download the complete Helix Tools suite](https://github.com/Helices3D/Helix-Tools/releases/latest/download/helix_tools.zip)**
@@ -20,6 +20,7 @@ Each tool's documentation link explains its workflow.
 | [Light Size and Shadow Control](https://github.com/Helices3D/Helix-Tools/releases/latest/download/area_light_shadow_control.zip) | Enable Eevee shadows in one click, resize light sources from saved baselines, and try reversible render presets with optional startup backups. | [Usage](docs/usage.md#light-size-and-shadow-control) |
 | [Hair Contact Culler](https://github.com/Helices3D/Helix-Tools/releases/latest/download/hair_contact_culler.zip) | Trim native hair from its first garment contact through the tip, preserving the root and preceding bends. Compare the original and choose Full, Low, or Hide viewport detail. | [Workflow guide](addons/hair_contact_culler/WORKFLOW.md) |
 | [Cloth Cache Manager](https://github.com/Helices3D/Helix-Tools/releases/latest/download/cloth_cache_manager.zip) | Manage cloth cages by model: preserve simulated frames as bakes before timeline navigation, or reset checked cages together. | [Usage](docs/usage.md#cloth-cache-manager) |
+| [Texture Resolution](https://github.com/Helices3D/Helix-Tools/releases/latest/download/texture_resolution.zip) | Create half-resolution texture alternatives, switch between originals and smaller copies, and compare estimated texture memory. | [Usage](docs/usage.md#texture-resolution) |
 
 Disable the individual Helix extensions before enabling the complete suite, or
 disable the suite before enabling individual copies. Saved scene settings carry

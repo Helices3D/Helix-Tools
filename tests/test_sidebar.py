@@ -5,17 +5,22 @@ models only UI construction; native interactive redraw is checked separately.
 """
 
 import importlib
+import tempfile
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
 import bpy
 
 from _hair_fixtures import make_garment, make_hair, select_objects
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from check_release_install import texture_fixture
 
 
 MODULE_NAMES = (
     "jump_by_time", "smart_empty", "camera_timeline_culler",
-    "area_light_shadow_control", "hair_contact_culler", "cloth_cache_manager",
+    "area_light_shadow_control", "hair_contact_culler", "cloth_cache_manager", "texture_resolution",
 )
 
 # These are user-facing controls available before the UI refresh (5162883).
@@ -54,6 +59,10 @@ BASELINE_CONTROLS = {
     "cloth_cache_manager": (
         {"cloth_tool_selected", "show_viewport", "show_render"},
         {"cloth_manager.bake_from_cache", "cloth_manager.reset_bakes"},
+    ),
+    "texture_resolution": (
+        {"threshold", "include_shared"},
+        {"helix_textures.setup", "helix_textures.switch_resolution"},
     ),
 }
 
@@ -169,6 +178,9 @@ class Layout:
     def row(self, **kwargs):
         return self._child("row")
 
+    def split(self, **kwargs):
+        return self._child("split")
+
     def label(self, *, text="", icon="NONE", **kwargs):
         self._record("label", text, icon)
 
@@ -202,7 +214,7 @@ class Layout:
         # default filtering as well, instead of considering a template call
         # sufficient evidence that each item's controls are reachable.
         ui_list = SimpleNamespace(
-            filter_name="", use_filter_invert=False, use_filter_sort_alpha=False,
+            filter_name="", use_filter_invert=False, use_filter_sort_alpha=False, layout_type="DEFAULT",
             bitflag_filter_item=1 << 30, bitflag_item_never_show=1 << 16,
         )
         flags = []
@@ -298,11 +310,16 @@ class SidebarDrawTests(unittest.TestCase):
         self.light()
         self.light("Sidebar Spot", "SPOT")
         self.hair(built=built_hair)
+        texture_directory = tempfile.TemporaryDirectory(prefix="helix-sidebar-textures-")
+        self.addCleanup(texture_directory.cleanup)
+        texture_fixture(self.scene, texture_directory.name, "Sidebar Texture")
+        self.assertEqual(bpy.ops.helix_textures.setup(), {"FINISHED"})
 
     def snapshot(self):
         scene = self.scene
         groups = tuple(_rna_values(getattr(scene, name)) for name in (
             "helix_smart_empty_settings", "camera_cull_settings", "area_light_shadow_control",
+            "helix_texture_resolution",
         ))
         objects = []
         for obj in bpy.data.objects:
@@ -384,7 +401,7 @@ class SidebarDrawTests(unittest.TestCase):
                     self.assertEqual(selected.calls[other], [] if other == identifier else calls)
         return opened
 
-    def test_all_six_registered_sidebars_keep_later_headers_when_bodies_close(self):
+    def test_all_registered_sidebars_keep_later_headers_when_bodies_close(self):
         self.populated_scene()
         for package, panels in self.panels.items():
             self.assertTrue(panels, package)
@@ -452,6 +469,7 @@ class SidebarDrawTests(unittest.TestCase):
             "area_light_shadow_control": "alsc.enable_eevee_shadows",
             "hair_contact_culler": "helix.hair_cull_build",
             "cloth_cache_manager": "cloth_manager.bake_from_cache",
+            "texture_resolution": "helix_textures.setup",
         }
         for package, action in actions.items():
             with self.subTest(package=package):

@@ -14,7 +14,7 @@ import bpy
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_releases import BUNDLE_ID, PACKAGES, build
-from check_release_install import enable_extension, installed_release_repository, release_archives
+from check_release_install import enable_extension, installed_release_repository, release_archives, texture_fixture
 from _hair_fixtures import evaluated_data, make_garment, make_hair, select_objects
 from test_integration import (PROPERTY_OWNERS, PUBLIC_OPERATORS, UPDATE_OPERATORS,
                               _module_classes, _properties, _assert_update_timers_stopped)
@@ -177,7 +177,7 @@ class FullSuiteTests(unittest.TestCase):
         preferences.cloth_confirm_resets = True
         self.assertTrue(settings.should_confirm_reset(bpy.context))
 
-    def test_failure_after_five_components_and_partial_hair_registration_rolls_back(self):
+    def test_failure_after_prior_components_and_partial_hair_registration_rolls_back(self):
         import _bpy_restrict_state
 
         hair = self.bundle.hair_contact_culler
@@ -316,11 +316,31 @@ class FullSuiteTests(unittest.TestCase):
         cloth.cloth_tool_selected = True
 
         with tempfile.TemporaryDirectory(prefix="helix-bundle-scene-") as directory:
+            texture_original, texture_node = texture_fixture(scene, directory, "Bundle Texture")
+            self.assertEqual(bpy.ops.helix_textures.setup(), {"FINISHED"})
+            texture_name = texture_original.name
+            texture_material_name = next(material.name for material in bpy.data.materials
+                                         if material.node_tree == texture_node.id_data)
+            texture_alternative_name = texture_node.image.name
             path = str(Path(directory) / "standalone-scene.blend")
             self.assertEqual(bpy.ops.wm.save_as_mainfile(filepath=path), {"FINISHED"})
             self.disable_standalones()
             self.activate_bundle()
             self.assertEqual(bpy.ops.wm.open_mainfile(filepath=path), {"FINISHED"})
+            texture_settings = bpy.context.scene.helix_texture_resolution
+            self.assertEqual(texture_settings.threshold, 8)
+            self.assertEqual(texture_settings.output_directory, directory)
+            self.assertEqual(len(texture_settings.records), 1)
+            record = texture_settings.records[0]
+            self.assertEqual(record.original, bpy.data.images[texture_name])
+            self.assertEqual(record.alternative, bpy.data.images[texture_alternative_name])
+            texture_node = next(node for node in bpy.data.materials[texture_material_name].node_tree.nodes
+                                if node.type == "TEX_IMAGE")
+            self.assertEqual(texture_node.image, record.alternative)
+            self.assertEqual(bpy.ops.helix_textures.switch_resolution(mode="ORIGINAL"), {"FINISHED"})
+            self.assertEqual(texture_node.image, record.original)
+            self.assertEqual(bpy.ops.helix_textures.switch_resolution(mode="HALF"), {"FINISHED"})
+            self.assertEqual(texture_node.image, record.alternative)
 
         scene = bpy.context.scene
         self.assertEqual(scene.jbt_offset, 145)

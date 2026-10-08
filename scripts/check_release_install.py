@@ -110,6 +110,49 @@ def installed_release_repository(archives, *, repository_id, enable_on_install=F
                 raise RuntimeError("Blender could not disable a release extension") from errors[0]
 
 
+def texture_fixture(scene, output_directory, name="Archive Texture"):
+    """Build a small real material image so install tests also exercise pixels."""
+    image = bpy.data.images.new(name, width=8, height=8, alpha=True)
+    image.pixels.foreach_set([0.2, 0.4, 0.6, 1.0] * 64)
+    material = bpy.data.materials.new(name)
+    material.use_nodes = True
+    node = material.node_tree.nodes.new("ShaderNodeTexImage")
+    node.image = image
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    scene.collection.objects.link(obj)
+    obj.data.materials.append(material)
+    settings = scene.helix_texture_resolution
+    settings.threshold = 8
+    settings.output_directory = str(output_directory)
+    return image, node
+
+
+def exercise_texture_resolution(component_prefix):
+    """Use installed public operators to create, restore and reuse a real copy."""
+    with tempfile.TemporaryDirectory(prefix="helix-archive-textures-") as directory:
+        original, node = texture_fixture(bpy.context.scene, directory)
+        assert bpy.ops.helix_textures.setup() == {"FINISHED"}
+        settings = bpy.context.scene.helix_texture_resolution
+        assert len(settings.records) == 1
+        record = settings.records[0]
+        assert record.original == original
+        assert record.alternative == node.image
+        alternative = node.image
+        assert alternative != original and tuple(alternative.size) == (4, 4)
+        assert tuple(original.size) == (8, 8)
+        assert all(abs(value - expected) < 0.02 for value, expected in
+                   zip(alternative.pixels[:4], original.pixels[:4]))
+        assert Path(bpy.path.abspath(alternative.filepath)).is_file()
+        assert bpy.ops.helix_textures.switch_resolution(mode="ORIGINAL") == {"FINISHED"}
+        assert node.image == original
+        assert bpy.ops.helix_textures.switch_resolution(mode="HALF") == {"FINISHED"}
+        assert node.image == alternative
+        assert bpy.ops.helix_textures.setup() == {"FINISHED"}
+        assert len(settings.records) == 1 and settings.records[0].alternative == alternative
+        assert sys.modules[f"{component_prefix}.texture_resolution"].SCENE_PROPERTY == "helix_texture_resolution"
+
+
 def exercise_tools(component_prefix):
     """Exercise the same native operations from either installed package layout."""
     scene = bpy.context.scene
@@ -172,6 +215,7 @@ def exercise_tools(component_prefix):
     assert bpy.ops.cloth_manager.reset_bakes() == {"FINISHED"}
     assert not cache.is_baked and cache.is_outdated
     assert cloth_modifier.settings.quality == 1
+    exercise_texture_resolution(component_prefix)
 
 
 def main():
