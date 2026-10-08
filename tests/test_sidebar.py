@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 import bpy
 
@@ -62,7 +63,7 @@ BASELINE_CONTROLS = {
     ),
     "texture_resolution": (
         {"threshold", "include_shared"},
-        {"helix_textures.setup", "helix_textures.switch_resolution"},
+        {"helix_textures.setup", "helix_textures.switch_resolution", "helix_textures.refresh_statistics"},
     ),
 }
 
@@ -408,6 +409,40 @@ class SidebarDrawTests(unittest.TestCase):
             for panel in panels:
                 with self.subTest(package=package, panel=panel.__name__):
                     self.assert_closed_draws(panel)
+
+    def test_texture_redraws_use_statistics_snapshot_without_scene_scans(self):
+        from texture_resolution import _core, _scan
+
+        directory = tempfile.TemporaryDirectory(prefix="helix-texture-redraw-")
+        self.addCleanup(directory.cleanup)
+        texture_fixture(self.scene, directory.name, "Redraw Texture")
+        self.assertEqual(bpy.ops.helix_textures.setup(), {"FINISHED"})
+        addon = self.modules["texture_resolution"]
+        self.assertTrue(addon.statistics_snapshot(self.scene)["available"])
+        panel = self.panels["texture_resolution"][0]
+        fail = AssertionError("Opening or redrawing texture panels must not scan scene references")
+        with mock.patch.object(_core, "scan_scene", side_effect=fail):
+            with mock.patch.object(_scan, "scan_scene", side_effect=fail):
+                with mock.patch.object(addon, "memory_estimates", side_effect=fail):
+                    with mock.patch.object(_core, "memory_estimates", side_effect=fail):
+                        for _ in range(10):
+                            self.draw(panel)
+                            self.draw(panel, mode="closed")
+                            self.draw(panel, mode="defaults")
+
+    def test_texture_missing_statistics_can_be_refreshed_without_setup(self):
+        addon = self.modules["texture_resolution"]
+        self.assertFalse(addon.statistics_snapshot(self.scene)["available"])
+        panel = self.panels["texture_resolution"][0]
+        trace = self.draw(panel)
+        refresh = [control for control in trace.controls
+                   if control["identifier"] == "helix_textures.refresh_statistics"]
+        self.assertEqual(len(refresh), 1)
+        self.assertTrue(refresh[0]["available"])
+        self.assertEqual(bpy.ops.helix_textures.refresh_statistics(), {"FINISHED"})
+        stats = addon.statistics_snapshot(self.scene)
+        self.assertTrue(stats["available"])
+        self.assertEqual(stats["count"], 0)
 
     def test_defaults_and_section_ids_are_independent_between_packages(self):
         self.populated_scene()

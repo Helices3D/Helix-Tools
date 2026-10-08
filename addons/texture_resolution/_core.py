@@ -128,11 +128,21 @@ def _replace(slots, target, result, expected_source):
     return changed, errors
 
 
-def _finish(settings, result, verb):
+def _finish(settings, result, verb, *, scene, slots):
     settings.last_report = (
         f"{verb}: {result.processed} images; {result.unchanged} unchanged; "
         f"{result.skipped} skipped; {result.failed} failed"
     )
+    try:
+        refresh_statistics(scene, slots=slots)
+    except Exception as error:
+        # Texture changes already succeeded. An optional display calculation
+        # must not turn that operation into a misleading failure or roll it back.
+        try:
+            settings.statistics_json = ""
+        except Exception:
+            pass
+        result.details.append(f"Statistics unavailable: {error}; use Refresh Statistics to retry")
     settings.details = "\n".join(dict.fromkeys(result.details))
     return result
 
@@ -226,11 +236,11 @@ def iter_setup(context):
                 result.details.append(f"{source.name}: {error}")
             yield index, total, source.name
     except GeneratorExit:
-        _finish(settings, result, "Setup stopped")
+        _finish(settings, result, "Setup stopped", scene=scene, slots=scan.slots)
         raise
     if not candidates:
         result.details.append(f"No scene images reach {settings.threshold} px on either side")
-    return _finish(settings, result, "Setup")
+    return _finish(settings, result, "Setup", scene=scene, slots=scan.slots)
 
 
 def setup_scene(context):
@@ -284,7 +294,8 @@ def switch_scene(context, mode):
             result.processed += 1
         else:
             result.unchanged += 1
-    return _finish(settings, result, "Originals" if mode == "ORIGINAL" else "Half resolution")
+    return _finish(settings, result, "Originals" if mode == "ORIGINAL" else "Half resolution",
+                   scene=scene, slots=live_slots)
 
 
 def _estimate_dimensions(width, height, channels, floating, half_precision, include_mipmaps=True):
@@ -314,19 +325,47 @@ def estimate_image_memory(image, width=None, height=None, include_mipmaps=True):
                                 image.use_half_precision, include_mipmaps)
 
 
-def memory_estimates(scene):
+_MEMORY_KEYS = (
+    "original_ram", "half_ram", "current_ram",
+    "original_vram", "half_vram", "current_vram",
+)
+
+
+def _empty_statistics():
+    return dict.fromkeys(_MEMORY_KEYS, 0) | {"count": 0, "current_mode": "NONE"}
+
+
+def memory_estimates(scene, *, slots=None):
+    """Compute a fresh snapshot during an explicit action, never during draw.
+
+    Callers that already scanned references reuse those slots. Read-only
+    statistics do not need the other-scene scans used to protect shared writes.
+    Canonicalize each live image once instead of once per tracked pair.
+    """
     settings = getattr(scene, SCENE_PROPERTY)
-    live_images = {slot.image for slot in scan_scene(scene).slots}
-    totals = dict.fromkeys((
-        "original_ram", "half_ram", "current_ram",
-        "original_vram", "half_vram", "current_vram",
-    ), 0)
+    totals = _empty_statistics()
+    if not settings.records:
+        return totals
+    if slots is None:
+        slots = scan_scene(scene, check_shared=False).slots
+    live_images = set()
+    for slot in slots:
+        try:
+            image = slot.image
+            if image is not None:
+                live_images.add(image)
+        except (AttributeError, ReferenceError, RuntimeError):
+            # A reference may have been deleted while modal setup yielded.
+            continue
+    by_original = {}
+    for image in live_images:
+        by_original.setdefault(original_image(image), set()).add(image)
     modes = set()
     counted_images = set()
     count = 0
     for record in settings.records:
-        source, alternative = record.original, record.alternative
-        relevant = {image for image in live_images if original_image(image) == source}
+        source = record.original
+        relevant = by_original.get(source, ())
         if source is None or not relevant:
             continue
         count += 1
@@ -352,3 +391,31 @@ def memory_estimates(scene):
     totals["count"] = count
     totals["current_mode"] = next(iter(modes)) if len(modes) == 1 else "MIXED" if modes else "NONE"
     return totals
+
+
+def refresh_statistics(scene, *, slots=None):
+    """Save a small display snapshot without retaining Blender references.
+
+    Keeping this alongside scene settings lets Blender restore it on undo and
+    file load, and keeps standalone/suite migration independent of runtime
+    caches or per-frame handlers. Manual material edits need an explicit refresh.
+    """
+    totals = memory_estimates(scene, slots=slots)
+    getattr(scene, SCENE_PROPERTY).statistics_json = json.dumps(totals, separators=(",", ":"))
+    return totals
+
+
+def statistics_snapshot(scene):
+    """Read constant-size display data; never inspect scene references/pixels."""
+    value = getattr(scene, SCENE_PROPERTY).statistics_json
+    if value and len(value) <= 4096:
+        try:
+            totals = json.loads(value)
+            if (isinstance(totals, dict)
+                    and all(type(totals.get(key)) is int and 0 <= totals[key] < 2 ** 64
+                            for key in (*_MEMORY_KEYS, "count"))
+                    and totals.get("current_mode") in {"NONE", "ORIGINAL", "HALF", "MIXED"}):
+                return {key: totals[key] for key in (*_MEMORY_KEYS, "count", "current_mode")} | {"available": True}
+        except (RecursionError, TypeError, ValueError):
+            pass
+    return _empty_statistics() | {"available": False}

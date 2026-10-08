@@ -4,7 +4,7 @@
 bl_info = {
     "name": "Texture Resolution",
     "author": "Codex, Helices3D",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (5, 2, 2),
     "location": "3D Viewport > Sidebar > Helix Tools",
     "description": "Create half-resolution textures and switch back to their originals",
@@ -18,7 +18,7 @@ from bpy.types import Operator, Panel, PropertyGroup, UIList
 
 from ._core import (
     SCENE_PROPERTY, eligible_image, estimate_image_memory, iter_setup,
-    memory_estimates, setup_scene, switch_scene,
+    memory_estimates, refresh_statistics, setup_scene, statistics_snapshot, switch_scene,
 )
 from ._layout import section, setup_layout
 from ._updates import create_updater
@@ -59,6 +59,7 @@ class HELIX_TEXTURES_PG_Settings(PropertyGroup):
     active_index: IntProperty(default=0, min=0)
     last_report: StringProperty(name="Last Result")
     details: StringProperty(name="Details")
+    statistics_json: StringProperty(name="Statistics Snapshot", options={"HIDDEN"})
 
 
 def _settings(scene):
@@ -257,6 +258,31 @@ class HELIX_TEXTURES_OT_details(Operator):
         return {"FINISHED"}
 
 
+class HELIX_TEXTURES_OT_refresh_statistics(Operator):
+    """Refresh the saved usage snapshot after manual texture changes"""
+
+    bl_idname = "helix_textures.refresh_statistics"
+    bl_label = "Refresh Statistics"
+    bl_description = (
+        "Refresh the resolution status and memory estimates after manual texture changes. "
+        "Setup and resolution buttons refresh automatically; viewport redraws do not scan the scene"
+    )
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context):
+        return _available(context)
+
+    def execute(self, context):
+        try:
+            refresh_statistics(context.scene)
+        except Exception as error:
+            self.report({"ERROR"}, f"Could not refresh texture statistics: {error}")
+            return {"CANCELLED"}
+        _tag_redraw(context)
+        return {"FINISHED"}
+
+
 def _record_dimensions(item):
     width, height = item.original_width, item.original_height
     if not width or not height:
@@ -306,7 +332,7 @@ class HELIX_TEXTURES_PT_main(Panel):
         layout = setup_layout(self.layout)
         settings = _settings(context.scene)
         busy = context.scene.as_pointer() in _RUNNING_SCENES
-        stats = memory_estimates(context.scene)
+        stats = statistics_snapshot(context.scene)
         mode = stats["current_mode"]
 
         resolution = section(layout, "Resolution", icon="IMAGE_DATA", section_id="resolution")
@@ -350,6 +376,7 @@ class HELIX_TEXTURES_PT_main(Panel):
 
         memory = section(layout, "Estimated Memory", icon="MEMORY", section_id="memory", default_closed=True)
         if memory is not None:
+            memory.operator("helix_textures.refresh_statistics", icon="FILE_REFRESH")
             def memory_row(label, original, half):
                 row = memory.row()
                 split = row.split(factor=0.24)
@@ -358,16 +385,19 @@ class HELIX_TEXTURES_PT_main(Panel):
                 values.column().label(text=original)
                 values.column().label(text=half)
 
-            memory_row("", "Original", "Half")
-            memory_row("RAM", _bytes_label(stats["original_ram"]), _bytes_label(stats["half_ram"]))
-            memory_row("VRAM", _bytes_label(stats["original_vram"]), _bytes_label(stats["half_vram"]))
-            memory.label(text=f"Current RAM: {_bytes_label(stats['current_ram'])}")
-            memory.label(text=f"Current VRAM: {_bytes_label(stats['current_vram'])}")
-            original = stats["original_vram"]
-            if original:
-                saved = max(0, original - stats["half_vram"])
-                memory.label(text=f"Potential VRAM reduction: {saved / original:.0%}")
-            memory.label(text="Estimates, not measured usage", icon="INFO")
+            if stats["available"]:
+                memory_row("", "Original", "Half")
+                memory_row("RAM", _bytes_label(stats["original_ram"]), _bytes_label(stats["half_ram"]))
+                memory_row("VRAM", _bytes_label(stats["original_vram"]), _bytes_label(stats["half_vram"]))
+                memory.label(text=f"Current RAM: {_bytes_label(stats['current_ram'])}")
+                memory.label(text=f"Current VRAM: {_bytes_label(stats['current_vram'])}")
+                original = stats["original_vram"]
+                if original:
+                    saved = max(0, original - stats["half_vram"])
+                    memory.label(text=f"Potential VRAM reduction: {saved / original:.0%}")
+            else:
+                memory.label(text="Refresh to read scene usage", icon="INFO")
+            memory.label(text="Snapshot, not measured usage", icon="INFO")
             memory.label(text="Original buffers may remain in RAM")
 
         about = section(layout, "About", icon="INFO", section_id="about", default_closed=True)
@@ -384,7 +414,7 @@ class HELIX_TEXTURES_PT_main(Panel):
 CLASSES = (
     HELIX_TEXTURES_PG_Record, HELIX_TEXTURES_PG_Settings, HELIX_TEXTURES_OT_setup,
     HELIX_TEXTURES_OT_switch_resolution, HELIX_TEXTURES_OT_details,
-    HELIX_TEXTURES_UL_Images, HELIX_TEXTURES_PT_main,
+    HELIX_TEXTURES_OT_refresh_statistics, HELIX_TEXTURES_UL_Images, HELIX_TEXTURES_PT_main,
 )
 
 

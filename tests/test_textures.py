@@ -2,6 +2,7 @@
 """Real Blender image, scene-reference and reversible resolution regressions."""
 
 from array import array
+import json
 from pathlib import Path
 import struct
 import tempfile
@@ -542,6 +543,199 @@ class TextureResolutionTests(unittest.TestCase):
         self.assertEqual(totals["current_ram"], full_estimate.ram_bytes + half_estimate.ram_bytes)
         self.assertEqual(totals["current_vram"], full_estimate.vram_bytes + half_estimate.vram_bytes)
 
+    def test_statistics_snapshot_never_scans_or_reads_tracked_records(self):
+        from texture_resolution import _core
+
+        original = self.image()
+        self.material_node(original)
+        self.setup()
+        expected = addon.statistics_snapshot(self.scene)
+        self.assertTrue(expected["available"])
+
+        class UnreadableRecords:
+            def __iter__(self):
+                raise AssertionError("A redraw must not iterate tracked images")
+
+            def __len__(self):
+                raise AssertionError("Statistics must only read the saved snapshot")
+
+        fake_scene = SimpleNamespace(**{addon.SCENE_PROPERTY: SimpleNamespace(
+            statistics_json=self.settings.statistics_json,
+            records=UnreadableRecords(),
+        )})
+        with mock.patch.object(_core, "scan_scene", side_effect=AssertionError("Unexpected scene scan")):
+            with mock.patch.object(_core, "memory_estimates", side_effect=AssertionError("Unexpected estimate refresh")):
+                for _ in range(100):
+                    self.assertEqual(addon.statistics_snapshot(fake_scene), expected)
+
+    def test_statistics_remain_a_snapshot_until_explicit_refresh_after_manual_rewire(self):
+        original = self.image()
+        _, _, first = self.material_node(original)
+        _, _, second = self.material_node(original)
+        self.setup()
+        initial = addon.statistics_snapshot(self.scene)
+        self.assertTrue(initial["available"])
+        self.assertEqual(initial["current_mode"], "HALF")
+        second.image = original
+        self.assertEqual(addon.statistics_snapshot(self.scene), initial)
+        self.assertEqual(bpy.ops.helix_textures.refresh_statistics(), {"FINISHED"})
+        mixed = addon.statistics_snapshot(self.scene)
+        self.assertEqual(mixed["current_mode"], "MIXED")
+        self.assertGreater(mixed["current_ram"], initial["current_ram"])
+        replacement = self.image("Manual replacement")
+        first.image = second.image = replacement
+        self.assertEqual(addon.statistics_snapshot(self.scene), mixed)
+        addon.refresh_statistics(self.scene)
+        refreshed = addon.statistics_snapshot(self.scene)
+        self.assertTrue(refreshed["available"])
+        self.assertEqual(refreshed["count"], 0)
+        self.assertEqual(refreshed["current_mode"], "NONE")
+        self.assertEqual(refreshed["current_ram"], 0)
+
+    def test_setup_switch_and_cancel_refresh_statistics_without_another_scene_scan(self):
+        from texture_resolution import _core
+
+        for name in ("First", "Second"):
+            self.material_node(self.image(name))
+        with mock.patch.object(_core, "scan_scene", wraps=_core.scan_scene) as scan:
+            iterator = addon.iter_setup(bpy.context)
+            next(iterator)
+            iterator.close()
+        self.assertEqual(scan.call_count, 1)
+        partial = addon.statistics_snapshot(self.scene)
+        self.assertTrue(partial["available"])
+        self.assertEqual(partial["count"], 1)
+        self.assertEqual(partial["current_mode"], "HALF")
+
+        with mock.patch.object(_core, "scan_scene", wraps=_core.scan_scene) as scan:
+            self.setup()
+        self.assertEqual(scan.call_count, 1)
+        finished = addon.statistics_snapshot(self.scene)
+        self.assertEqual(finished["count"], 2)
+        self.assertEqual(finished["current_mode"], "HALF")
+        for mode in ("ORIGINAL", "HALF"):
+            with self.subTest(mode=mode):
+                with mock.patch.object(_core, "scan_scene", wraps=_core.scan_scene) as scan:
+                    self.switch(mode)
+                self.assertEqual(scan.call_count, 1)
+                snapshot = addon.statistics_snapshot(self.scene)
+                self.assertTrue(snapshot["available"])
+                self.assertEqual(snapshot["current_mode"], mode)
+                self.assertEqual(snapshot["count"], 2)
+                self.assertEqual(snapshot["current_ram"], snapshot[
+                    "original_ram" if mode == "ORIGINAL" else "half_ram"])
+
+    def test_blank_or_malformed_statistics_are_safe_without_a_scene_scan(self):
+        from texture_resolution import _core
+
+        self.material_node(self.image())
+        self.setup()
+        valid = json.loads(self.settings.statistics_json)
+        payloads = ["", "not JSON", "null", "[]", "{}",
+                    "[" * 1200 + "]" * 1200, "x" * (2 * 1024 * 1024)]
+        for field, value in (("current_ram", -1), ("count", True),
+                             ("current_vram", "1024"), ("current_mode", "INVALID")):
+            invalid = dict(valid)
+            invalid[field] = value
+            payloads.append(json.dumps(invalid))
+        for payload in payloads:
+            with self.subTest(payload=payload[:80]):
+                self.settings.statistics_json = payload
+                with mock.patch.object(_core, "scan_scene", side_effect=AssertionError("Unexpected scene scan")):
+                    snapshot = addon.statistics_snapshot(self.scene)
+                self.assertFalse(snapshot["available"])
+                self.assertEqual(snapshot["count"], 0)
+                self.assertEqual(snapshot["current_mode"], "NONE")
+                self.assertTrue(all(snapshot[key] == 0 for key in (
+                    "original_ram", "half_ram", "current_ram",
+                    "original_vram", "half_vram", "current_vram")))
+
+    def test_memory_estimates_skip_scene_scans_when_no_images_are_tracked(self):
+        from texture_resolution import _core
+
+        self.material_node(self.image("Untracked"))
+        with mock.patch.object(_core, "scan_scene", side_effect=AssertionError("Nothing is tracked")):
+            totals = addon.memory_estimates(self.scene)
+        self.assertEqual(totals["count"], 0)
+        self.assertEqual(totals["current_mode"], "NONE")
+
+    def test_statistics_failure_preserves_successful_setup_and_switch_results(self):
+        from texture_resolution import _core
+
+        original = self.image()
+        _, _, node = self.material_node(original)
+        with mock.patch.object(_core, "memory_estimates", side_effect=RuntimeError("Injected statistics error")):
+            result = addon.setup_scene(bpy.context)
+            alternative = node.image
+            self.assertNotEqual(alternative, original)
+            self.assertEqual((result.processed, result.failed, result.changed_refs), (1, 0, 1))
+            self.assertTrue(any("Injected statistics error" in item for item in result.details))
+            self.assertIn("1 images", self.settings.last_report)
+            self.assertIn("0 failed", self.settings.last_report)
+            self.assertFalse(addon.statistics_snapshot(self.scene)["available"])
+            for mode, expected in (("ORIGINAL", original), ("HALF", alternative)):
+                with self.subTest(mode=mode):
+                    result = addon.switch_scene(bpy.context, mode)
+                    self.assertEqual(node.image, expected)
+                    self.assertEqual((result.processed, result.failed, result.changed_refs), (1, 0, 1))
+                    self.assertTrue(any("Injected statistics error" in item for item in result.details))
+                    self.assertIn("Injected statistics error", self.settings.details)
+                    self.assertFalse(addon.statistics_snapshot(self.scene)["available"])
+
+    def test_public_texture_actions_finish_when_only_statistics_refresh_fails(self):
+        from texture_resolution import _core
+
+        original = self.image()
+        _, _, node = self.material_node(original)
+        with mock.patch.object(_core, "memory_estimates", side_effect=RuntimeError("Injected statistics error")):
+            self.assertEqual(bpy.ops.helix_textures.setup(), {"FINISHED"})
+            alternative = node.image
+            self.assertNotEqual(alternative, original)
+            self.assertEqual(bpy.ops.helix_textures.switch_resolution(mode="ORIGINAL"), {"FINISHED"})
+            self.assertEqual(node.image, original)
+            self.assertEqual(bpy.ops.helix_textures.switch_resolution(mode="HALF"), {"FINISHED"})
+            self.assertEqual(node.image, alternative)
+        self.assertIn("0 failed", self.settings.last_report)
+        self.assertFalse(addon.statistics_snapshot(self.scene)["available"])
+
+    def test_explicit_statistics_refresh_reports_failures_clearly(self):
+        from texture_resolution import _core
+
+        self.material_node(self.image())
+        self.setup()
+        report = mock.Mock()
+        operator = SimpleNamespace(report=report)
+        with mock.patch.object(_core, "memory_estimates", side_effect=RuntimeError("Injected statistics error")):
+            result = addon.HELIX_TEXTURES_OT_refresh_statistics.execute(operator, bpy.context)
+        self.assertEqual(result, {"CANCELLED"})
+        report.assert_called_once()
+        severity, message = report.call_args.args
+        self.assertEqual(severity, {"ERROR"})
+        self.assertIn("Injected statistics error", message)
+
+    def test_memory_estimates_group_live_images_once_instead_of_per_record(self):
+        from texture_resolution import _core
+
+        slots = []
+        for index in range(24):
+            original = self.image(f"Source {index}")
+            alternative = self.image(f"Alternative {index}", (8, 4))
+            alternative[_core.ORIGINAL_KEY] = original
+            record = self.settings.records.add()
+            record.original, record.alternative = original, alternative
+            record.original_width, record.original_height = 16, 8
+            record.channels = 4
+            record.is_float = False
+            record.half_precision = False
+            slots.extend([SimpleNamespace(image=original), SimpleNamespace(image=alternative)])
+        with mock.patch.object(_core, "scan_scene", return_value=SimpleNamespace(slots=slots)):
+            with mock.patch.object(_core, "original_image", wraps=_core.original_image) as canonical:
+                totals = addon.memory_estimates(self.scene)
+        self.assertEqual(totals["count"], 24)
+        self.assertEqual(totals["current_mode"], "MIXED")
+        self.assertLessEqual(canonical.call_count, 4 * (len(slots) + len(self.settings.records)),
+                             "Refreshing estimates must not walk every live image for every record")
+
     def test_tracking_survives_save_reopen_and_can_restore_original(self):
         original = self.image("Saved Original")
         _, material, node = self.material_node(original)
@@ -549,6 +743,8 @@ class TextureResolutionTests(unittest.TestCase):
         material_name = material.name
         self.setup()
         alternative_name = node.image.name
+        saved_statistics = addon.statistics_snapshot(self.scene)
+        self.assertTrue(saved_statistics["available"])
         blend = self.path / "tracked.blend"
         bpy.ops.wm.save_as_mainfile(filepath=str(blend), check_existing=False)
         bpy.ops.wm.open_mainfile(filepath=str(blend))
@@ -557,6 +753,7 @@ class TextureResolutionTests(unittest.TestCase):
         node = bpy.data.materials[material_name].node_tree.nodes["Tracked Node"]
         self.assertEqual(node.image.name, alternative_name)
         self.assertEqual(len(self.settings.records), 1)
+        self.assertEqual(addon.statistics_snapshot(self.scene), saved_statistics)
         self.switch("ORIGINAL")
         self.assertEqual(node.image.name, "Saved Original")
         self.assertEqual(tuple(node.image.size), (16, 8))

@@ -343,7 +343,14 @@ pack those image edits separately. Replacing a tracked reference with
 an unrelated image is respected by subsequent switches.
 
 Memory figures are estimates for the tracked image pixels, not live RAM or VRAM
-measurements. RAM estimates use decoded channel data; VRAM estimates use
+measurements. The panel reads a saved snapshot so keeping it open does not scan
+the scene during viewport navigation or playback. Setup, resolution switches,
+and canceled setup update the snapshot automatically. After manually replacing
+textures or changing scene references, use **Estimated Memory → Refresh
+Statistics** to update the figures and resolution status. Files saved with an
+older version may need one refresh to populate their first snapshot.
+
+RAM estimates use decoded channel data; VRAM estimates use
 uncompressed RGBA8, RGBA16F, or RGBA32F data with a complete mip chain. Half width
 and half height use approximately one quarter of the pixel storage, a roughly 75% reduction. Actual memory depends on GPU texture
 formats, mipmaps, Blender's image cache, and which images are loaded. Retaining

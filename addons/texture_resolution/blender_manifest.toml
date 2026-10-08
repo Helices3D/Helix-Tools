@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "texture_resolution"
-version = "1.0.0"
+version = "1.0.1"
 name = "Texture Resolution"
 tagline = "Switch scene textures between originals and half resolution"
 maintainer = "Helices3D"

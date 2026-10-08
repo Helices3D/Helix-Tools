@@ -208,7 +208,7 @@ class _SceneScanner:
         return self
 
 
-def scan_scene(scene):
+def scan_scene(scene, *, check_shared=True):
     """Return image slots, marking references also reachable in another scene.
 
     Sharing an Image alone is harmless: only an identical reference slot in a
@@ -219,9 +219,10 @@ def scan_scene(scene):
     """
     scanner = _SceneScanner().scene(scene)
     other_slots = set()
-    for other_scene in bpy.data.scenes:
-        if other_scene != scene:
-            other_slots.update(_SceneScanner().scene(other_scene).slots)
+    if check_shared:
+        for other_scene in bpy.data.scenes:
+            if other_scene != scene:
+                other_slots.update(_SceneScanner().scene(other_scene).slots)
     result = ScanResult(list(scanner.slots.values()))
     for slot in result.slots:
         slot.shared = slot.key in other_slots

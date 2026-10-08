@@ -50,6 +50,7 @@ PUBLIC_OPERATORS = (
     "cloth_manager.reset_bakes",
     "helix_textures.setup",
     "helix_textures.switch_resolution",
+    "helix_textures.refresh_statistics",
 )
 
 UPDATE_OPERATORS = tuple(
