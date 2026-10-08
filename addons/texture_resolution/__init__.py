@@ -313,7 +313,7 @@ class HELIX_TEXTURES_PT_main(Panel):
         if resolution is not None:
             controls = resolution.column()
             controls.enabled = not busy
-            controls.prop(settings, "threshold", text="Minimum Size (px)")
+            controls.prop(settings, "threshold", text="Min Size (px)")
             action = controls.column()
             action.scale_y = 1.25
             action.operator("helix_textures.setup", icon="FILE_REFRESH")
@@ -367,7 +367,7 @@ class HELIX_TEXTURES_PT_main(Panel):
             if original:
                 saved = max(0, original - stats["half_vram"])
                 memory.label(text=f"Potential VRAM reduction: {saved / original:.0%}")
-            memory.label(text="Active image estimates; not measured use", icon="INFO")
+            memory.label(text="Estimates, not measured usage", icon="INFO")
             memory.label(text="Original buffers may remain in RAM")
 
         about = section(layout, "About", icon="INFO", section_id="about", default_closed=True)
@@ -375,10 +375,10 @@ class HELIX_TEXTURES_PT_main(Panel):
             about.label(text="Both dimensions are halved")
             about.label(text="Original files stay unchanged")
             about.label(text="Run again for new or edited textures")
-            about.label(text="Save your blend to keep tracked pairs")
-            about.label(text="Copy the alternatives with your project")
-            about.label(text="Still images only; no UDIMs or sequences")
-            about.label(text="Estimates exclude other scene resources")
+            about.label(text="Save blend to keep tracked pairs")
+            about.label(text="Copy alternatives with project")
+            about.label(text="Still images; no UDIMs/sequences")
+            about.label(text="Estimates exclude other resources")
 
 
 CLASSES = (

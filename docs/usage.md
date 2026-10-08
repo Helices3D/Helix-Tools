@@ -304,7 +304,7 @@ panel moves from **Cloth Tools** into the shared **Helix Tools** tab.
 ## Texture Resolution
 
 Use **Helix Tools → Texture Resolution** to make smaller alternatives for large
-scene textures while retaining their originals. The default **Minimum Size** is
+scene textures while retaining their originals. The default **Min Size (px)** is
 4000 px. An image qualifies when either dimension reaches that value: 4096×2048
 qualifies just as 4096×4096 does. Half resolution divides both dimensions by two
 (rounded down, with a minimum of one pixel), so 4096×4096 becomes 2048×2048 and
